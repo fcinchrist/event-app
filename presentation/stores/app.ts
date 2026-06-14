@@ -30,7 +30,8 @@ const EVENTS_STORAGE_KEY = 'komasync_events_v2'
 const BOOKINGS_STORAGE_KEY = 'komasync_bookings_v2'
 
 function getDefaultEvents(): Event[] {
-  const today = new Date().toISOString().slice(0, 10)
+  const now = new Date().toISOString()
+  const today = now.slice(0, 10)
   return [
     {
       id: 'EVT-101',
@@ -40,6 +41,9 @@ function getDefaultEvents(): Event[] {
       location: 'Jakarta Creative Hub, Thamrin',
       quota: 50,
       image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=600',
+      status: 'Aktif',
+      createdAt: now,
+      updatedAt: now,
     },
     {
       id: 'EVT-102',
@@ -49,6 +53,9 @@ function getDefaultEvents(): Event[] {
       location: 'Greenhouse Co-working Space, Jaksel',
       quota: 15,
       image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=600',
+      status: 'Aktif',
+      createdAt: now,
+      updatedAt: now,
     },
     {
       id: 'EVT-103',
@@ -58,6 +65,9 @@ function getDefaultEvents(): Event[] {
       location: 'Online via Zoom Meeting',
       quota: 100,
       image: 'https://images.unsplash.com/photo-1591453089816-0fbb971b454c?auto=format&fit=crop&q=80&w=600',
+      status: 'Aktif',
+      createdAt: now,
+      updatedAt: now,
     },
   ]
 }
@@ -268,6 +278,7 @@ export const useAppStore = defineStore('app', {
       const generatedId = 'EVT-' + Math.floor(200 + Math.random() * 800)
       const fallbackImage = this.newEventForm.image.trim() || 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&q=80&w=600'
 
+      const now = new Date().toISOString()
       const newEvent: Event = {
         id: generatedId,
         title,
@@ -276,6 +287,9 @@ export const useAppStore = defineStore('app', {
         location,
         quota: parseInt(String(quota)),
         image: fallbackImage,
+        status: 'Aktif',
+        createdAt: now,
+        updatedAt: now,
       }
 
       this.events.unshift(newEvent)

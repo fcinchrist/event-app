@@ -1,3 +1,5 @@
+import type { EventStatusValue } from '~/types/common'
+
 export interface Event {
   id: string
   title: string
@@ -6,6 +8,9 @@ export interface Event {
   location: string
   quota: number
   image: string
+  status: EventStatusValue
+  createdAt: string
+  updatedAt: string
 }
 
 export interface EventFormData {
