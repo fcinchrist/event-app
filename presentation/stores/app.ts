@@ -1,9 +1,11 @@
 import { defineStore } from 'pinia'
-import type { Event, EventFormData } from '~/domain/entities/event'
+import type { Event } from '~/domain/entities/event'
 import type { Booking, BookingFormData } from '~/domain/entities/booking'
 import type { FilterPeriode, AppRole, EventStatus, BookingStatus } from '~/types/common'
 import type { AuthUser } from '~/domain/repositories/auth-repository'
 import { SupabaseAuthRepository } from '~/infrastructure/repositories/supabase-auth-repository'
+import { SupabaseEventRepository } from '~/infrastructure/repositories/supabase-event-repository'
+import { GetEvents } from '~/application/use-cases/get-events'
 import { LoginUser } from '~/application/use-cases/login-user'
 import { LogoutUser } from '~/application/use-cases/logout-user'
 import { RequestPasswordReset } from '~/application/use-cases/request-password-reset'
@@ -22,64 +24,16 @@ interface AppState {
   bookingForm: BookingFormData
   attendanceFormBookingId: string
   showAddEventModal: boolean
-  newEventForm: EventFormData
+  newEventForm: {
+    title: string
+    date: string
+    quota: number
+    location: string
+    image: string
+    description: string
+  }
   isLoading: boolean
-}
-
-const EVENTS_STORAGE_KEY = 'komasync_events_v2'
-const BOOKINGS_STORAGE_KEY = 'komasync_bookings_v2'
-
-function getDefaultEvents(): Event[] {
-  const now = new Date().toISOString()
-  const today = now.slice(0, 10)
-  return [
-    {
-      id: 'EVT-101',
-      title: 'Kopi Darat Komunitas Dev Terbesar 2026',
-      description: 'Kumpul santai bulanan membahas arah tren industri, networking antar developer, serta sharing project internal.',
-      date: `${today}T19:00`,
-      location: 'Jakarta Creative Hub, Thamrin',
-      quota: 50,
-      image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=600',
-      status: 'Aktif',
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: 'EVT-102',
-      title: 'Workshop UI/UX Funnel Architecture',
-      description: 'Akselerasikan konversi produk digitalmu lewat rancangan visual flow terstruktur dan prototype yang lolos usability testing.',
-      date: '2026-07-10T13:00',
-      location: 'Greenhouse Co-working Space, Jaksel',
-      quota: 15,
-      image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=600',
-      status: 'Aktif',
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: 'EVT-103',
-      title: 'Seminar Cloud Serverless Deployment',
-      description: 'Eksplorasi mendalam terkait pemanfaatan arsitektur serverless multi-region untuk memangkas budget operasional infrastruktur cloud korporasi.',
-      date: '2026-05-01T10:00',
-      location: 'Online via Zoom Meeting',
-      quota: 100,
-      image: 'https://images.unsplash.com/photo-1591453089816-0fbb971b454c?auto=format&fit=crop&q=80&w=600',
-      status: 'Aktif',
-      createdAt: now,
-      updatedAt: now,
-    },
-  ]
-}
-
-function getDefaultBookings(): Booking[] {
-  return [
-    { id: 'BKG-77123', eventId: 'EVT-101', name: 'Rian Dimas', wa: '08123445566', status: 'Belum Hadir' },
-    { id: 'BKG-77124', eventId: 'EVT-101', name: 'Siti Amelia', wa: '08571234567', status: 'Hadir' },
-    { id: 'BKG-99211', eventId: 'EVT-102', name: 'Budi Santoso', wa: '08991122334', status: 'Belum Hadir' },
-    { id: 'BKG-99212', eventId: 'EVT-102', name: 'Gisella Anastasia', wa: '08215566778', status: 'Belum Hadir' },
-    { id: 'BKG-99213', eventId: 'EVT-102', name: 'Arif Rahman', wa: '08138899001', status: 'Belum Hadir' },
-  ]
+  error: string | null
 }
 
 export const useAppStore = defineStore('app', {
@@ -92,6 +46,8 @@ export const useAppStore = defineStore('app', {
     page: 1,
     perPage: 6,
     events: [],
+    // Bookings kosong: belum ada tabel event_registrations di Supabase.
+    // Kalau nanti ditambah, ganti `fetchBookings()` (pola yang sama dengan events).
     bookings: [],
     bookingForm: { name: '', wa: '' },
     attendanceFormBookingId: '',
@@ -105,6 +61,7 @@ export const useAppStore = defineStore('app', {
       description: '',
     },
     isLoading: true,
+    error: null,
   }),
 
   getters: {
@@ -150,21 +107,25 @@ export const useAppStore = defineStore('app', {
   },
 
   actions: {
-    init(): void {
+    /**
+     * Ambil daftar event dari Supabase (bukan dari hardcode / localStorage).
+     * Dipanggil saat layout mount, dan dipakai juga oleh halaman utama (`/`).
+     */
+    async fetchEvents(): Promise<void> {
       this.isLoading = true
-      if (import.meta.client) {
-        if (!localStorage.getItem(EVENTS_STORAGE_KEY)) {
-          localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(getDefaultEvents()))
-        }
-        if (!localStorage.getItem(BOOKINGS_STORAGE_KEY)) {
-          localStorage.setItem(BOOKINGS_STORAGE_KEY, JSON.stringify(getDefaultBookings()))
-        }
-        // Simulate loading delay for skeleton demo
-        setTimeout(() => {
-          this.events = JSON.parse(localStorage.getItem(EVENTS_STORAGE_KEY) || '[]')
-          this.bookings = JSON.parse(localStorage.getItem(BOOKINGS_STORAGE_KEY) || '[]')
-          this.isLoading = false
-        }, 800)
+      this.error = null
+      try {
+        const repo = new SupabaseEventRepository()
+        const useCase = new GetEvents(repo)
+        // Ambil sampai 20 event (max di repository). Untuk halaman utama
+        // yang paginasi client-side 6 per halaman, ini sudah cukup.
+        const result = await useCase.execute({ page: 1, limit: 20 })
+        this.events = result.data
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Gagal memuat event.'
+        this.error = message
+      } finally {
+        this.isLoading = false
       }
     },
 
@@ -204,57 +165,24 @@ export const useAppStore = defineStore('app', {
       return wa.slice(0, 4) + '****' + wa.slice(-3)
     },
 
+    /**
+     * Booking belum didukung karena tabel `event_registrations` belum ada
+     * di Supabase. Method ini sengaja mengembalikan pesan error agar UI
+     * form tidak diam-diam menyimpan ke localStorage.
+     */
     submitBooking(): string | null {
       if (!this.bookingForm.name || !this.bookingForm.wa) {
         return 'Harap masukkan Nama Lengkap & Nomor WhatsApp aktif Anda.'
       }
-      if (!this.selectedEvent) return 'Event tidak ditemukan.'
-
-      if (this.getSlotsTaken(this.selectedEvent.id) >= this.selectedEvent.quota) {
-        return 'Maaf, pendaftaran gagal karena kuota event ini sudah penuh.'
-      }
-
-      const alreadyRegistered = this.bookings.some(
-        (b: Booking) => b.eventId === this.selectedEvent!.id && b.wa.trim() === this.bookingForm.wa.trim()
-      )
-      if (alreadyRegistered) {
-        return 'Nomor WhatsApp ini sudah terdaftar dalam manifes event ini.'
-      }
-
-      const newId = 'BKG-' + Math.floor(10000 + Math.random() * 90000)
-      const newBooking: Booking = {
-        id: newId,
-        eventId: this.selectedEvent.id,
-        name: this.bookingForm.name,
-        wa: this.bookingForm.wa,
-        status: 'Belum Hadir',
-      }
-
-      this.bookings.push(newBooking)
-      if (import.meta.client) {
-        localStorage.setItem(BOOKINGS_STORAGE_KEY, JSON.stringify(this.bookings))
-      }
-
-      this.bookingForm = { name: '', wa: '' }
-      return null
+      return 'Fitur booking online belum tersedia. Silakan hubungi panitia untuk reservasi manual.'
     },
 
+    /**
+     * Sama dengan submitBooking: absensi online belum didukung karena
+     * tidak ada tabel attendance di Supabase.
+     */
     submitAttendanceCheck(): string | null {
-      if (!this.attendanceFormBookingId) {
-        return 'Silakan pilih nama Anda pada list dropdown terlebih dahulu.'
-      }
-
-      const target = this.bookings.find((b: Booking) => b.id === this.attendanceFormBookingId)
-      if (target) {
-        target.status = 'Hadir'
-        if (import.meta.client) {
-          localStorage.setItem(BOOKINGS_STORAGE_KEY, JSON.stringify(this.bookings))
-        }
-        const name = target.name
-        this.attendanceFormBookingId = ''
-        return `success:${name}`
-      }
-      return 'Booking tidak ditemukan.'
+      return 'Absensi online belum tersedia. Panitia akan melakukan check-in di lokasi acara.'
     },
 
     openAddEventModal(): void {
@@ -269,56 +197,21 @@ export const useAppStore = defineStore('app', {
       this.showAddEventModal = true
     },
 
+    /**
+     * Tidak menulis ke localStorage lagi — untuk membuat event baru,
+     * admin harus login dan tambah lewat dashboard (`/dashboard/events`).
+     * Method ini hanya dipakai oleh UI lama yang akan di-deprecate.
+     */
     submitNewEvent(): string | null {
-      const { title, date, location, quota } = this.newEventForm
-      if (!title || !date || !location || !quota) {
-        return 'Mohon lengkapi kolom Judul, Tanggal, Kuota, dan Lokasi Event.'
-      }
-
-      const generatedId = 'EVT-' + Math.floor(200 + Math.random() * 800)
-      const fallbackImage = this.newEventForm.image.trim() || 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&q=80&w=600'
-
-      const now = new Date().toISOString()
-      const newEvent: Event = {
-        id: generatedId,
-        title,
-        description: (this.newEventForm.description as string).trim() || 'Mari bergabung dalam keceriaan agenda rutin bersama keluarga besar Friendship Community.',
-        date,
-        location,
-        quota: parseInt(String(quota)),
-        image: fallbackImage,
-        status: 'Aktif',
-        createdAt: now,
-        updatedAt: now,
-      }
-
-      this.events.unshift(newEvent)
-      if (import.meta.client) {
-        localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(this.events))
-      }
-
-      this.showAddEventModal = false
-      this.page = 1
-      return null
+      return 'Silakan login sebagai admin dan tambah event dari halaman Dashboard / Kelola Event.'
     },
 
-    deleteEvent(eventId: string): void {
-      this.events = this.events.filter((e: Event) => e.id !== eventId)
-      this.bookings = this.bookings.filter((b: Booking) => b.eventId !== eventId)
-      if (import.meta.client) {
-        localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(this.events))
-        localStorage.setItem(BOOKINGS_STORAGE_KEY, JSON.stringify(this.bookings))
-      }
-      if (this.selectedEvent && this.selectedEvent.id === eventId) {
-        this.clearSelectedEvent()
-      }
+    deleteEvent(_eventId: string): void {
+      // Delegated ke dashboard store yang memakai Supabase.
     },
 
-    cancelBooking(bookingId: string): void {
-      this.bookings = this.bookings.filter((b: Booking) => b.id !== bookingId)
-      if (import.meta.client) {
-        localStorage.setItem(BOOKINGS_STORAGE_KEY, JSON.stringify(this.bookings))
-      }
+    cancelBooking(_bookingId: string): void {
+      // No-op: bookings belum persistensi DB.
     },
 
     setFilter(periode: FilterPeriode): void {

@@ -29,7 +29,10 @@ watch(routeKey, () => {
 })
 
 onMounted(async () => {
-  store.init()
+  // Ambil data event publik dari Supabase (bukan dari hardcode/localStorage)
+  if (store.events.length === 0) {
+    await store.fetchEvents()
+  }
   // Hydrate auth state di client (server sudah ditangani middleware)
   if (store.authUser === null) {
     await store.initAuth()
