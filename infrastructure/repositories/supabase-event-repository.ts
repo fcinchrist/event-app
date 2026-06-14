@@ -104,6 +104,18 @@ export class SupabaseEventRepository implements EventRepository {
     const quotaNumber = typeof payload.quota === 'string'
       ? parseInt(payload.quota, 10)
       : payload.quota
+    const newImage: string = payload.image ?? ''
+
+    // Ambil gambar lama dulu agar jika diganti kita bisa bersihkan storage.
+    const { data: oldRow } = await supabase
+      .from('events')
+      .select('image')
+      .eq('id', id)
+      .maybeSingle()
+
+    const oldImage: string = (oldRow && typeof oldRow === 'object' && 'image' in oldRow)
+      ? String((oldRow as { image: unknown }).image ?? '')
+      : ''
 
     const { data, error } = await supabase
       .from('events')
@@ -113,7 +125,7 @@ export class SupabaseEventRepository implements EventRepository {
         date: dateIso,
         location: payload.location.trim(),
         quota: quotaNumber,
-        image: payload.image ?? '',
+        image: newImage,
       })
       .eq('id', id)
       .select('*')
@@ -123,11 +135,54 @@ export class SupabaseEventRepository implements EventRepository {
       throw new Error(error.message)
     }
 
+    // Hapus foto lama dari storage HANYA jika:
+    // - ada foto lama,
+    // - berbeda dari foto baru,
+    // - dan merupakan URL Supabase Storage kita.
+    if (oldImage && oldImage !== newImage) {
+      try {
+        await this.deleteImage(oldImage)
+      } catch (storageErr: unknown) {
+        console.warn('[update-event] Gagal menghapus foto lama:', storageErr)
+      }
+    }
+
     return mapEventRow(data)
   }
 
   async delete(id: string): Promise<void> {
     const supabase = useSupabaseClient()
+
+    // 1. Ambil row event terlebih dahulu untuk mengetahui URL gambar
+    //    yang harus dihapus dari Storage.
+    const { data: row, error: fetchError } = await supabase
+      .from('events')
+      .select('image')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (fetchError) {
+      throw new Error(fetchError.message)
+    }
+
+    const imageUrl: string = (row && typeof row === 'object' && 'image' in row)
+      ? String((row as { image: unknown }).image ?? '')
+      : ''
+
+    // 2. Hapus file gambar dari Storage (kalau ada & milik bucket kita).
+    //    Kegagalan di sini TIDAK membatalkan penghapusan row, karena
+    //   比起 storage orphan, integritas data row lebih diprioritaskan.
+    if (imageUrl) {
+      try {
+        await this.deleteImage(imageUrl)
+      } catch (storageErr: unknown) {
+        // Log saja, lanjut hapus row. Foto orphan bisa dibersihkan manual
+        // lewat dashboard Supabase Storage.
+        console.warn('[delete-event] Gagal menghapus foto, lanjut hapus row:', storageErr)
+      }
+    }
+
+    // 3. Hapus row event dari database.
     const { error } = await supabase
       .from('events')
       .delete()
@@ -136,6 +191,57 @@ export class SupabaseEventRepository implements EventRepository {
     if (error) {
       throw new Error(error.message)
     }
+  }
+
+  /**
+   * Menghapus sebuah file di bucket `event-images` berdasarkan public URL.
+   *
+   * - URL kosong / URL external (bukan Supabase) → no-op (return false).
+   * - Berhasil → return true.
+   *
+   * Catatan: URL public Supabase Storage berbentuk:
+   *   https://<project>.supabase.co/storage/v1/object/public/<bucket>/<path>
+   * Path yang dipakai untuk `remove()` adalah `<path>` (relatif terhadap bucket).
+   */
+  async deleteImage(publicUrl: string): Promise<boolean> {
+    if (!publicUrl) return false
+
+    const supabase = useSupabaseClient()
+
+    // Decode dulu untuk handle URL yang mengandung karakter khusus.
+    let url: URL
+    try {
+      url = new URL(publicUrl)
+    } catch {
+      return false
+    }
+
+    // Cari segment "/storage/v1/object/public/<bucket>/" di pathname
+    // dan ambil path setelahnya.
+    const marker = '/storage/v1/object/public/'
+    const idx = url.pathname.indexOf(marker)
+    if (idx === -1) {
+      // Bukan URL Supabase Storage (mis. Unsplash). Jangan dihapus.
+      return false
+    }
+
+    const after = url.pathname.slice(idx + marker.length)
+    const slashIdx = after.indexOf('/')
+    if (slashIdx === -1) return false
+
+    const bucket = after.slice(0, slashIdx)
+    const filePath = decodeURIComponent(after.slice(slashIdx + 1))
+
+    if (bucket !== EVENTS_BUCKET || !filePath) return false
+
+    const { error } = await supabase.storage
+      .from(bucket)
+      .remove([filePath])
+
+    if (error) {
+      throw new Error(error.message)
+    }
+    return true
   }
 
   async uploadImage(file: File): Promise<string> {
