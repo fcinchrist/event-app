@@ -11,8 +11,10 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      appName: process.env.APP_NAME || 'Event Management System',
-      companyName: process.env.COMPANY_NAME || 'Friendship Community',
+      appName: '',
+      companyName: '',
+      supabaseUrl: '',
+      supabaseAnonKey: '',
     },
   },
 
@@ -41,5 +43,12 @@ export default defineNuxtConfig({
         { rel: 'stylesheet', href: 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css' },
       ],
     },
+  },
+  vite: {
+    server: {
+      allowedHosts: [
+        'squishy-tyke-register.ngrok-free.dev', // Replace with your exact ngrok domain
+      ]
+    }
   },
 })

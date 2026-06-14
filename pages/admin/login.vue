@@ -8,28 +8,30 @@ definePageMeta({
 const store = useAppStore()
 const config = useRuntimeConfig()
 
+const email = ref('')
 const password = ref('')
 const errorMessage = ref('')
+const isLoading = ref(false)
 
 // Redirect if already logged in
-onMounted(() => {
+onMounted(async () => {
+  await store.initAuth()
   if (store.isAdminLoggedIn) {
     navigateTo('/')
   }
 })
 
-function handleLogin(): void {
+async function handleLogin(): Promise<void> {
   errorMessage.value = ''
-  if (!password.value.trim()) {
-    errorMessage.value = 'Masukkan password admin Anda.'
-    return
-  }
-  const success = store.adminLogin(password.value)
-  if (success) {
+  isLoading.value = true
+
+  const error = await store.loginAdmin(email.value, password.value)
+  isLoading.value = false
+
+  if (!error) {
     navigateTo('/')
   } else {
-    errorMessage.value = 'Password salah. Silakan coba lagi.'
-    password.value = ''
+    errorMessage.value = error
   }
 }
 </script>
@@ -51,9 +53,29 @@ function handleLogin(): void {
 
         <!-- Form -->
         <div class="p-6 space-y-5">
+          <!-- Email -->
           <div>
             <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-              Password Admin
+              Email
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
+                <i class="fa-solid fa-envelope text-sm" />
+              </span>
+              <input
+                v-model="email"
+                type="email"
+                placeholder="admin@example.com"
+                class="bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800 font-medium"
+                autocomplete="email"
+              >
+            </div>
+          </div>
+
+          <!-- Password -->
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+              Password
             </label>
             <div class="relative">
               <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
@@ -62,8 +84,9 @@ function handleLogin(): void {
               <input
                 v-model="password"
                 type="password"
-                placeholder="Masukkan password admin"
+                placeholder="Masukkan password Anda"
                 class="bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800 font-medium"
+                autocomplete="current-password"
                 @keydown.enter="handleLogin"
               >
             </div>
@@ -79,10 +102,16 @@ function handleLogin(): void {
           </div>
 
           <button
-            class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold transition-all shadow-md flex items-center justify-center gap-2"
+            :disabled="isLoading"
+            class="w-full py-3 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-bold transition-all shadow-md flex items-center justify-center gap-2"
             @click="handleLogin"
           >
-            <i class="fa-solid fa-arrow-right-to-bracket" /> Masuk sebagai Admin
+            <template v-if="isLoading">
+              <i class="fa-solid fa-spinner animate-spin" /> Memproses...
+            </template>
+            <template v-else>
+              <i class="fa-solid fa-arrow-right-to-bracket" /> Masuk sebagai Admin
+            </template>
           </button>
 
           <div class="text-center">

@@ -2,10 +2,14 @@ import { defineStore } from 'pinia'
 import type { Event, EventFormData } from '~/domain/entities/event'
 import type { Booking, BookingFormData } from '~/domain/entities/booking'
 import type { FilterPeriode, AppRole, EventStatus, BookingStatus } from '~/types/common'
+import type { AuthUser } from '~/domain/repositories/auth-repository'
+import { SupabaseAuthRepository } from '~/infrastructure/repositories/supabase-auth-repository'
+import { LoginUser } from '~/application/use-cases/login-user'
+import { LogoutUser } from '~/application/use-cases/logout-user'
 
 interface AppState {
   role: AppRole
-  isAdminLoggedIn: boolean
+  authUser: AuthUser | null
   selectedEvent: Event | null
   filterPeriode: FilterPeriode
   filterTanggal: string
@@ -69,7 +73,7 @@ function getDefaultBookings(): Booking[] {
 export const useAppStore = defineStore('app', {
   state: (): AppState => ({
     role: 'member',
-    isAdminLoggedIn: false,
+    authUser: null,
     selectedEvent: null,
     filterPeriode: 'all',
     filterTanggal: '',
@@ -92,6 +96,10 @@ export const useAppStore = defineStore('app', {
   }),
 
   getters: {
+    isAdminLoggedIn(): boolean {
+      return this.authUser !== null && this.role === 'admin'
+    },
+
     filteredEvents(): Event[] {
       const todayStr = new Date().toISOString().slice(0, 10)
       return this.events.filter((e: Event) => {
@@ -322,18 +330,45 @@ export const useAppStore = defineStore('app', {
       }
     },
 
-    adminLogin(password: string): boolean {
-      // Temporary simple password check (before Supabase auth integration)
-      if (password === 'admin123') {
-        this.isAdminLoggedIn = true
-        this.role = 'admin'
-        return true
+    async initAuth(): Promise<void> {
+      try {
+        const repo = new SupabaseAuthRepository()
+        const user = await repo.getCurrentUser()
+        if (user) {
+          this.authUser = user
+          this.role = 'admin'
+        }
+      } catch {
+        this.authUser = null
+        this.role = 'member'
       }
-      return false
     },
 
-    adminLogout(): void {
-      this.isAdminLoggedIn = false
+    async loginAdmin(email: string, password: string): Promise<string | null> {
+      try {
+        const repo = new SupabaseAuthRepository()
+        const loginUseCase = new LoginUser(repo)
+        const result = await loginUseCase.execute(email, password)
+        if (result.success && result.user) {
+          this.authUser = result.user
+          this.role = 'admin'
+          return null
+        }
+        return result.error ?? 'Login gagal.'
+      } catch {
+        return 'Gagal terhubung ke server. Periksa koneksi Anda.'
+      }
+    },
+
+    async adminLogout(): Promise<void> {
+      try {
+        const repo = new SupabaseAuthRepository()
+        const logoutUseCase = new LogoutUser(repo)
+        await logoutUseCase.execute()
+      } catch {
+        // proceed with local logout even if server call fails
+      }
+      this.authUser = null
       this.role = 'member'
       this.showAddEventModal = false
     },
