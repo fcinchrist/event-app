@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAppStore } from '~/presentation/stores/app'
+import { useRegistrationStore } from '~/presentation/stores/registration'
 
 definePageMeta({
   layout: 'default',
@@ -7,20 +8,47 @@ definePageMeta({
 
 const route = useRoute()
 const store = useAppStore()
+const regStore = useRegistrationStore()
+
+// Loading state lokal halaman detail. True sampai event berhasil di-set
+// (untuk kasus deep-link / refresh) atau sampai store selesai fetch.
+const isLoadingDetail = ref(true)
 
 const eventId = computed(() => String(route.params.id))
 
+async function ensureEventLoaded(id: string): Promise<void> {
+  isLoadingDetail.value = true
+  try {
+    // Untuk deep-link / refresh: kalau list event belum ada (atau event yang
+    // diminta tidak ketemu di cache), fetch dulu dari Supabase. Tanpa ini
+    // halaman menampilkan "Event Tidak Ditemukan" walau sebenarnya ada.
+    if (store.events.length === 0) {
+      await store.fetchEvents()
+    }
+    store.setSelectedEventById(id)
+    // Pre-fetch peserta untuk event ini agar list & counter quota update.
+    if (id) {
+      void regStore.fetchParticipants(id)
+    }
+  } finally {
+    isLoadingDetail.value = false
+  }
+}
+
 onMounted(() => {
-  store.setSelectedEventById(eventId.value)
+  void ensureEventLoaded(eventId.value)
 })
 
 watch(eventId, (newId) => {
-  store.setSelectedEventById(newId)
+  void ensureEventLoaded(newId)
 })
 </script>
 
 <template>
-  <div class="space-y-8">
+  <!-- Loading skeleton: tampil saat pertama load / refresh / deep-link -->
+  <EventDetailSkeleton v-if="isLoadingDetail" />
+
+  <div v-else class="space-y-8">
     <NuxtLink
       to="/"
       class="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-emerald-600 transition-colors"
@@ -109,8 +137,7 @@ watch(eventId, (newId) => {
 
       <!-- Sidebar -->
       <div class="space-y-6 lg:sticky lg:top-24">
-        <EventEventBookingForm />
-        <AttendanceAttendanceForm />
+        <EventBookingForm />
       </div>
     </div>
   </div>

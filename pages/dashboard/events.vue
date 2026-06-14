@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useDashboardStore } from '~/presentation/stores/dashboard'
 import { useAppStore } from '~/presentation/stores/app'
+import { useRegistrationStore } from '~/presentation/stores/registration'
 import type { Event } from '~/domain/entities/event'
 import type { EventStatusValue } from '~/types/common'
 
@@ -11,10 +12,13 @@ definePageMeta({
 
 const store = useDashboardStore()
 const appStore = useAppStore()
+const regStore = useRegistrationStore()
 const config = useRuntimeConfig()
 
 const showAddModal = ref(false)
 const showEditModal = ref(false)
+const showParticipantsModal = ref(false)
+const participantsEvent = ref<Event | null>(null)
 const editingEvent = ref<Event | null>(null)
 const searchQuery = ref('')
 const imageLoadMap = ref<Record<string, boolean>>({})
@@ -140,6 +144,11 @@ function openEdit(event: Event): void {
   showEditModal.value = true
 }
 
+function openParticipants(event: Event): void {
+  participantsEvent.value = event
+  showParticipantsModal.value = true
+}
+
 function onUpdated(): void {
   // store sudah update state.events secara reaktif
 }
@@ -150,6 +159,10 @@ function openAdd(): void {
 
 function onCreated(): void {
   store.fetchEvents()
+  // Refresh participants count untuk semua event
+  Promise.all(
+    store.events.map((e) => regStore.fetchParticipants(e.id)),
+  )
 }
 
 onMounted(async () => {
@@ -157,6 +170,10 @@ onMounted(async () => {
     await appStore.initAuth()
   }
   await store.fetchEvents()
+  // Pre-fetch participants count untuk badge tombol "Lihat Peserta"
+  await Promise.all(
+    store.events.map((e) => regStore.fetchParticipants(e.id)),
+  )
 })
 </script>
 
@@ -353,6 +370,20 @@ onMounted(async () => {
               <div class="col-span-2 flex items-center justify-end gap-1.5">
                 <button
                   type="button"
+                  class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 border border-slate-200 transition-all relative"
+                  title="Lihat & kelola peserta"
+                  @click="openParticipants(event)"
+                >
+                  <i class="fa-solid fa-users text-xs" />
+                  <span
+                    v-if="regStore.participantsByEvent[event.id]?.length"
+                    class="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-indigo-600 text-white text-[9px] font-extrabold rounded-full flex items-center justify-center"
+                  >
+                    {{ regStore.participantsByEvent[event.id].length }}
+                  </span>
+                </button>
+                <button
+                  type="button"
                   class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-200 transition-all"
                   title="Edit event"
                   :disabled="store.isSubmitting"
@@ -433,6 +464,19 @@ onMounted(async () => {
                 <div class="mt-2.5 flex items-center gap-1.5">
                   <button
                     type="button"
+                    class="flex-1 py-1.5 rounded-lg text-[11px] font-bold border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-all flex items-center justify-center gap-1"
+                    @click="openParticipants(event)"
+                  >
+                    <i class="fa-solid fa-users" /> Peserta
+                    <span
+                      v-if="regStore.participantsByEvent[event.id]?.length"
+                      class="ml-1 px-1.5 py-0.5 rounded-md bg-indigo-600 text-white text-[9px] font-extrabold"
+                    >
+                      {{ regStore.participantsByEvent[event.id].length }}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
                     class="flex-1 py-1.5 rounded-lg text-[11px] font-bold border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-all flex items-center justify-center gap-1"
                     :disabled="store.isSubmitting"
                     @click="openEdit(event)"
@@ -491,5 +535,6 @@ onMounted(async () => {
 
     <DashboardAddEventModal v-model="showAddModal" @created="onCreated" />
     <DashboardEditEventModal v-model="showEditModal" :event="editingEvent" @updated="onUpdated" />
+    <DashboardEventParticipantsModal v-model="showParticipantsModal" :event="participantsEvent" />
   </DashboardShell>
 </template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAppStore } from '~/presentation/stores/app'
+import { useRegistrationStore } from '~/presentation/stores/registration'
 import { ref } from 'vue'
 import type { Event } from '~/domain/entities/event'
 
@@ -8,6 +9,7 @@ const props = defineProps<{
 }>()
 
 const store = useAppStore()
+const regStore = useRegistrationStore()
 const imageLoaded = ref(false)
 </script>
 
@@ -29,7 +31,7 @@ const imageLoaded = ref(false)
         </div>
         <div class="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl shadow-sm text-xs font-bold text-slate-800 flex items-center gap-1.5">
           <i class="fa-solid fa-users text-emerald-600" />
-          <span>{{ store.getSlotsTaken(props.event.id) }}/{{ props.event.quota }} Terisi</span>
+          <span>{{ regStore.getSlotsTakenByEvent(props.event.id) }}/{{ props.event.quota }} Terisi</span>
         </div>
       </div>
       <div class="p-5">

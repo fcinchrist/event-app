@@ -162,7 +162,7 @@ export const useAppStore = defineStore('app', {
 
     maskPhoneNumber(wa: string): string {
       if (!wa) return ''
-      return wa.slice(0, 4) + '****' + wa.slice(-3)
+      return wa.slice(0, 4) + '****' + wa.slice(-2)
     },
 
     /**

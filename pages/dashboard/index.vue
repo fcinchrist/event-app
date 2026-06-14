@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useDashboardStore } from '~/presentation/stores/dashboard'
 import { useAppStore } from '~/presentation/stores/app'
+import { useRegistrationStore } from '~/presentation/stores/registration'
 import type { OccupancyItem } from '~/components/dashboard/OccupancyList.vue'
 import type { ActivityLog } from '~/components/dashboard/RecentActivity.vue'
 
@@ -11,6 +12,7 @@ definePageMeta({
 
 const store = useDashboardStore()
 const appStore = useAppStore()
+const regStore = useRegistrationStore()
 const config = useRuntimeConfig()
 
 const showAddModal = ref(false)
@@ -40,10 +42,24 @@ function onCreated(): void {
   store.fetchEvents()
 }
 
+import type { RegistrationWithUser } from '~/domain/entities/registration'
+
+/**
+ * Flatten `participantsByEvent` (map per-event) menjadi satu list.
+ * Dipakai untuk hitung KPI global & recent activity.
+ */
+const allParticipants = computed<RegistrationWithUser[]>(() => {
+  const all: RegistrationWithUser[] = []
+  for (const list of Object.values(regStore.participantsByEvent)) {
+    all.push(...list)
+  }
+  return all
+})
+
 const kpi = computed(() => {
   const totalEvents = store.events.length
-  const totalReservations = appStore.bookings.length
-  const presentCount = appStore.bookings.filter((b) => b.status === 'Hadir').length
+  const totalReservations = allParticipants.value.length
+  const presentCount = allParticipants.value.filter((b: RegistrationWithUser) => b.status === 'Hadir').length
   const absentCount = totalReservations - presentCount
   const percent = totalReservations > 0 ? Math.round((presentCount / totalReservations) * 100) : 0
   return { totalEvents, totalReservations, presentCount, absentCount, percent }
@@ -53,7 +69,7 @@ const occupancyItems = computed<OccupancyItem[]>(() => {
   return store.events.slice(0, 5).map((e) => ({
     id: e.id,
     title: e.title,
-    taken: appStore.bookings.filter((b) => b.eventId === e.id).length,
+    taken: regStore.getSlotsTakenByEvent(e.id),
     quota: e.quota,
   }))
 })
@@ -62,13 +78,13 @@ const recentActivity = computed<ActivityLog[]>(() => {
   const eventTitleMap = new Map<string, string>(
     appStore.events.map((e) => [e.id, e.title]),
   )
-  return appStore.bookings
+  return allParticipants.value
     .filter((b) => b.status === 'Hadir')
     .slice(-5)
     .reverse()
     .map((b) => ({
       id: b.id,
-      name: b.name,
+      name: b.user.nama,
       eventTitle: eventTitleMap.get(b.eventId) ?? 'Event tidak diketahui',
       checkInTime: formatCheckInTimestamp(),
     }))
@@ -79,6 +95,10 @@ onMounted(async () => {
     await appStore.initAuth()
   }
   await store.fetchEvents()
+  // Fetch participants per-event untuk KPI & recent activity
+  await Promise.all(
+    store.events.map((e) => regStore.fetchParticipants(e.id)),
+  )
 })
 </script>
 

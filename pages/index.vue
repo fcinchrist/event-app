@@ -1,13 +1,23 @@
 <script setup lang="ts">
 import { useAppStore } from '~/presentation/stores/app'
+import { useRegistrationStore } from '~/presentation/stores/registration'
 
 definePageMeta({
   layout: 'default',
 })
 
 const store = useAppStore()
+const regStore = useRegistrationStore()
 
 const SKELETON_COUNT = 6
+
+onMounted(async () => {
+  // Pre-fetch peserta per event untuk counter di EventCard.
+  // Tanpa ini, EventCard akan tampil 0/quota karena participantsByEvent belum di-hydrate.
+  await Promise.all(
+    store.events.map((e) => regStore.fetchParticipants(e.id)),
+  )
+})
 </script>
 
 <template>

@@ -165,12 +165,12 @@ onMounted(async () => {
             <!-- ============ Auth ============ -->
             <ClientOnly>
               <template v-if="store.isAdminLoggedIn">
-                <div class="flex items-center gap-2 px-4 pt-3 pb-1.5">
+                <NuxtLink to="/dashboard" class="flex items-center gap-2 px-4 pt-3 pb-1.5">
                   <span class="w-1.5 h-3.5 rounded-full bg-emerald-500" />
                   <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
                     Akun Admin
                   </div>
-                </div>
+                </NuxtLink>
                 <div class="px-4 py-2 bg-slate-900 text-emerald-400 rounded-xl text-xs font-bold truncate flex items-center gap-2">
                   <i class="fa-solid fa-circle-user" />
                   <span class="truncate">{{ store.authUser?.email }}</span>
