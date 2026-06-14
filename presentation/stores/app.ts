@@ -4,8 +4,8 @@ import type { Booking, BookingFormData } from '~/domain/entities/booking'
 import type { FilterPeriode, AppRole, EventStatus, BookingStatus } from '~/types/common'
 
 interface AppState {
-  currentPage: 'list' | 'detail'
   role: AppRole
+  isAdminLoggedIn: boolean
   selectedEvent: Event | null
   filterPeriode: FilterPeriode
   filterTanggal: string
@@ -68,8 +68,8 @@ function getDefaultBookings(): Booking[] {
 
 export const useAppStore = defineStore('app', {
   state: (): AppState => ({
-    currentPage: 'list',
     role: 'member',
+    isAdminLoggedIn: false,
     selectedEvent: null,
     filterPeriode: 'all',
     filterTanggal: '',
@@ -148,18 +148,17 @@ export const useAppStore = defineStore('app', {
       }
     },
 
-    navigateTo(page: 'list' | 'detail'): void {
-      this.currentPage = page
-      if (import.meta.client) {
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-      }
-    },
-
-    viewEventDetail(event: Event): void {
+    setSelectedEventById(eventId: string): void {
+      const event = this.events.find((e: Event) => e.id === eventId) || null
       this.selectedEvent = event
       this.bookingForm = { name: '', wa: '' }
       this.attendanceFormBookingId = ''
-      this.navigateTo('detail')
+    },
+
+    clearSelectedEvent(): void {
+      this.selectedEvent = null
+      this.bookingForm = { name: '', wa: '' }
+      this.attendanceFormBookingId = ''
     },
 
     getEventStatusBadge(eventDateStr: string): EventStatus {
@@ -287,7 +286,7 @@ export const useAppStore = defineStore('app', {
         localStorage.setItem(BOOKINGS_STORAGE_KEY, JSON.stringify(this.bookings))
       }
       if (this.selectedEvent && this.selectedEvent.id === eventId) {
-        this.navigateTo('list')
+        this.clearSelectedEvent()
       }
     },
 
@@ -321,6 +320,22 @@ export const useAppStore = defineStore('app', {
       if (role === 'member') {
         this.showAddEventModal = false
       }
+    },
+
+    adminLogin(password: string): boolean {
+      // Temporary simple password check (before Supabase auth integration)
+      if (password === 'admin123') {
+        this.isAdminLoggedIn = true
+        this.role = 'admin'
+        return true
+      }
+      return false
+    },
+
+    adminLogout(): void {
+      this.isAdminLoggedIn = false
+      this.role = 'member'
+      this.showAddEventModal = false
     },
 
     formatDate(isoString: string): string {

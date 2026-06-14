@@ -8,7 +8,6 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  viewDetail: [event: Event]
   deleteEvent: [eventId: string]
 }>()
 
@@ -39,12 +38,12 @@ const imageLoaded = ref(false)
       </div>
       <div class="p-5">
         <div class="flex justify-between items-start gap-2">
-          <h3
-            class="font-bold text-lg text-slate-900 leading-snug hover:text-emerald-600 transition-colors cursor-pointer"
-            @click="emit('viewDetail', props.event)"
+          <NuxtLink
+            :to="`/event/${props.event.id}`"
+            class="font-bold text-lg text-slate-900 leading-snug hover:text-emerald-600 transition-colors"
           >
             {{ props.event.title }}
-          </h3>
+          </NuxtLink>
           <button
             v-if="store.role === 'admin'"
             class="text-slate-300 hover:text-rose-600 p-1 rounded transition-colors"
@@ -66,13 +65,13 @@ const imageLoaded = ref(false)
       </div>
     </div>
     <div class="p-5 pt-0">
-      <button
+      <NuxtLink
+        :to="`/event/${props.event.id}`"
         class="w-full py-2.5 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2"
-        @click="emit('viewDetail', props.event)"
       >
         <span>Lihat Detail & Daftar</span>
         <i class="fa-solid fa-arrow-right text-xs" />
-      </button>
+      </NuxtLink>
     </div>
   </div>
 </template>

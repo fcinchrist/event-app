@@ -3,12 +3,16 @@ import { useAppStore } from '~/presentation/stores/app'
 
 const store = useAppStore()
 const config = useRuntimeConfig()
+
+function handleLogoClick(): void {
+  navigateTo('/')
+}
 </script>
 
 <template>
   <header class="bg-white border-b border-slate-200 sticky top-0 z-50 px-4 py-3">
     <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
-      <div class="flex items-center gap-3 cursor-pointer" @click="store.navigateTo('list')">
+      <div class="flex items-center gap-3 cursor-pointer" @click="handleLogoClick">
         <div class="bg-emerald-600 text-white p-2.5 rounded-xl shadow-md shadow-emerald-200">
           <i class="fa-solid fa-calendar-check text-xl" />
         </div>
@@ -20,21 +24,28 @@ const config = useRuntimeConfig()
         </div>
       </div>
 
-      <div class="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
-        <button
-          :class="store.role === 'member' ? 'bg-white text-emerald-700 shadow-sm font-semibold' : 'text-slate-600 font-medium'"
-          class="px-4 py-1.5 rounded-lg text-xs transition-all duration-200 flex items-center gap-1.5"
-          @click="store.setRole('member')"
+      <div class="flex items-center gap-2">
+        <!-- Admin Logged In -->
+        <div v-if="store.isAdminLoggedIn" class="flex items-center gap-2">
+          <span class="bg-slate-900 text-emerald-400 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+            <i class="fa-solid fa-shield-halved" /> Admin Mode
+          </span>
+          <button
+            class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 transition-all border border-slate-200 flex items-center gap-1.5"
+            @click="store.adminLogout()"
+          >
+            <i class="fa-solid fa-arrow-right-from-bracket" /> Logout
+          </button>
+        </div>
+
+        <!-- Not Logged In -->
+        <NuxtLink
+          v-else
+          to="/admin/login"
+          class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-emerald-600 bg-slate-100 hover:bg-emerald-50 transition-all border border-slate-200 flex items-center gap-1.5"
         >
-          <i class="fa-solid fa-users" /> Event
-        </button>
-        <button
-          :class="store.role === 'admin' ? 'bg-slate-900 text-emerald-400 shadow-sm font-semibold' : 'text-slate-600 font-medium'"
-          class="px-4 py-1.5 rounded-lg text-xs transition-all duration-200 flex items-center gap-1.5"
-          @click="store.setRole('admin')"
-        >
-          <i class="fa-solid fa-lock" /> Admin
-        </button>
+          <i class="fa-solid fa-lock" /> Admin Login
+        </NuxtLink>
       </div>
     </div>
   </header>
