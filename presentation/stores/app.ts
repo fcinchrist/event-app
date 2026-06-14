@@ -6,6 +6,8 @@ import type { AuthUser } from '~/domain/repositories/auth-repository'
 import { SupabaseAuthRepository } from '~/infrastructure/repositories/supabase-auth-repository'
 import { LoginUser } from '~/application/use-cases/login-user'
 import { LogoutUser } from '~/application/use-cases/logout-user'
+import { RequestPasswordReset } from '~/application/use-cases/request-password-reset'
+import { UpdatePassword } from '~/application/use-cases/update-password'
 
 interface AppState {
   role: AppRole
@@ -371,6 +373,31 @@ export const useAppStore = defineStore('app', {
       this.authUser = null
       this.role = 'member'
       this.showAddEventModal = false
+    },
+
+    async requestPasswordReset(email: string): Promise<string | null> {
+      try {
+        const repo = new SupabaseAuthRepository()
+        const useCase = new RequestPasswordReset(repo)
+        const redirectTo = `${window.location.origin}/admin/reset-password`
+        const result = await useCase.execute(email, redirectTo)
+        if (result.success) return null
+        return result.error ?? 'Gagal mengirim email reset.'
+      } catch {
+        return 'Gagal terhubung ke server.'
+      }
+    },
+
+    async updatePassword(newPassword: string, confirmPassword: string): Promise<string | null> {
+      try {
+        const repo = new SupabaseAuthRepository()
+        const useCase = new UpdatePassword(repo)
+        const result = await useCase.execute(newPassword, confirmPassword)
+        if (result.success) return null
+        return result.error ?? 'Gagal memperbarui password.'
+      } catch {
+        return 'Gagal terhubung ke server.'
+      }
     },
 
     formatDate(isoString: string): string {
