@@ -2,12 +2,6 @@
 import { useAppStore } from '~/presentation/stores/app'
 
 const store = useAppStore()
-
-function handleCancel(bookingId: string): void {
-  if (confirm('Admin Confirmed: Apakah Anda yakin ingin membatalkan/menghapus pendaftaran peserta ini?')) {
-    store.cancelBooking(bookingId)
-  }
-}
 </script>
 
 <template>
@@ -44,13 +38,6 @@ function handleCancel(bookingId: string): void {
           >
             {{ bk.status }}
           </span>
-          <button
-            v-if="store.role === 'admin'"
-            class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold px-2 py-1 rounded-lg transition-all text-[10px] flex items-center gap-1"
-            @click="handleCancel(bk.id)"
-          >
-            <i class="fa-solid fa-user-minus" /> Cancel
-          </button>
         </div>
       </div>
       <div v-if="store.bookingsForSelectedEvent.length === 0" class="py-8 text-center text-slate-400 italic">

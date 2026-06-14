@@ -8,16 +8,6 @@ definePageMeta({
 const store = useAppStore()
 
 const SKELETON_COUNT = 6
-
-function handleDeleteEvent(eventId: string): void {
-  if (confirm('Apakah Anda yakin ingin menghapus event ini? Semua data pendaftar pada event terkait juga akan ikut terhapus.')) {
-    store.deleteEvent(eventId)
-  }
-}
-
-function handleOpenAddEvent(): void {
-  store.openAddEventModal()
-}
 </script>
 
 <template>
@@ -26,7 +16,7 @@ function handleOpenAddEvent(): void {
     <EventHeroBanner />
 
     <!-- Filter Bar -->
-    <EventFilter @open-add-event="handleOpenAddEvent" />
+    <EventFilter />
 
     <!-- Skeleton Loading Grid -->
     <div v-if="store.isLoading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -42,7 +32,6 @@ function handleOpenAddEvent(): void {
         v-for="event in store.paginatedEvents"
         :key="event.id"
         :event="event"
-        @delete-event="handleDeleteEvent"
       />
     </div>
 
@@ -70,8 +59,5 @@ function handleOpenAddEvent(): void {
 
     <!-- Pagination -->
     <UiPagination v-if="!store.isLoading" />
-
-    <!-- Add Event Modal -->
-    <EventAddEventModal />
   </div>
 </template>

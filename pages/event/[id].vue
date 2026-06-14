@@ -113,8 +113,5 @@ watch(eventId, (newId) => {
         <AttendanceAttendanceForm />
       </div>
     </div>
-
-    <!-- Add Event Modal (admin can add event from detail page too) -->
-    <EventAddEventModal />
   </div>
 </template>

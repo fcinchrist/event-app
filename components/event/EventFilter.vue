@@ -2,10 +2,6 @@
 import { useAppStore } from '~/presentation/stores/app'
 
 const store = useAppStore()
-
-const emit = defineEmits<{
-  openAddEvent: []
-}>()
 </script>
 
 <template>
@@ -15,13 +11,6 @@ const emit = defineEmits<{
         <i class="fa-solid fa-filter text-slate-400 text-sm" />
         <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Filter Agenda:</span>
       </div>
-      <button
-        v-if="store.role === 'admin'"
-        class="md:hidden bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1"
-        @click="emit('openAddEvent')"
-      >
-        <i class="fa-solid fa-circle-plus" /> Tambah Event
-      </button>
     </div>
 
     <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 flex-grow justify-end">
@@ -66,14 +55,6 @@ const emit = defineEmits<{
           </button>
         </div>
       </div>
-
-      <button
-        v-if="store.role === 'admin'"
-        class="hidden md:flex bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all items-center gap-1.5 shadow-sm shrink-0"
-        @click="emit('openAddEvent')"
-      >
-        <i class="fa-solid fa-circle-plus text-emerald-400" /> Tambah Event Baru
-      </button>
     </div>
   </div>
 </template>

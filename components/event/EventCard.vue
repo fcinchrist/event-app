@@ -7,10 +7,6 @@ const props = defineProps<{
   event: Event
 }>()
 
-const emit = defineEmits<{
-  deleteEvent: [eventId: string]
-}>()
-
 const store = useAppStore()
 const imageLoaded = ref(false)
 </script>
@@ -37,22 +33,12 @@ const imageLoaded = ref(false)
         </div>
       </div>
       <div class="p-5">
-        <div class="flex justify-between items-start gap-2">
-          <NuxtLink
-            :to="`/event/${props.event.id}`"
-            class="font-bold text-lg text-slate-900 leading-snug hover:text-emerald-600 transition-colors"
-          >
-            {{ props.event.title }}
-          </NuxtLink>
-          <button
-            v-if="store.role === 'admin'"
-            class="text-slate-300 hover:text-rose-600 p-1 rounded transition-colors"
-            title="Hapus Event"
-            @click="emit('deleteEvent', props.event.id)"
-          >
-            <i class="fa-solid fa-trash-can text-sm" />
-          </button>
-        </div>
+        <NuxtLink
+          :to="`/event/${props.event.id}`"
+          class="font-bold text-lg text-slate-900 leading-snug hover:text-emerald-600 transition-colors block"
+        >
+          {{ props.event.title }}
+        </NuxtLink>
         <p class="text-xs text-slate-500 mt-2 flex items-center gap-1.5">
           <i class="fa-solid fa-calendar-days text-slate-400" />
           <span>{{ store.formatDate(props.event.date) }}</span>

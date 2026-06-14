@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useDashboardStore } from '~/presentation/stores/dashboard'
 import { useImageCompressor } from '~/presentation/composables/useImageCompressor'
+import type { EventFormData } from '~/domain/entities/event'
 
 interface Props {
   modelValue: boolean
@@ -25,117 +26,83 @@ interface FormState {
   description: string
 }
 
-const form = reactive<FormState>({
-  title: '',
-  date: '',
-  quota: 50,
-  location: '',
-  image: '',
-  description: '',
-})
+function emptyForm(): FormState {
+  return {
+    title: '',
+    date: '',
+    quota: 50,
+    location: '',
+    image: '',
+    description: '',
+  }
+}
 
-const previewUrl = ref<string>('')
-const uploadError = ref<string>('')
+const form = ref<FormState>(emptyForm())
+const localError = ref<string | null>(null)
 const isUploading = ref(false)
-const isCompressing = ref(false)
-const originalSize = ref<number>(0)
-const compressedSize = ref<number>(0)
+const fileInputRef = ref<HTMLInputElement | null>(null)
 
 const isOpen = computed({
   get: () => props.modelValue,
   set: (v: boolean) => emit('update:modelValue', v),
 })
 
-function resetForm(): void {
-  form.title = ''
-  form.date = ''
-  form.quota = 50
-  form.location = ''
-  form.image = ''
-  form.description = ''
-  previewUrl.value = ''
-  uploadError.value = ''
-  originalSize.value = 0
-  compressedSize.value = 0
-}
+const canSubmit = computed(() => {
+  return form.value.title.trim().length > 0
+    && form.value.date.length > 0
+    && form.value.location.trim().length > 0
+    && form.value.quota > 0
+})
 
-watch(
-  () => props.modelValue,
-  (open) => {
-    if (open) resetForm()
-  },
-)
-
-function formatBytes(bytes: number): string {
-  if (!bytes) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`
-}
+watch(() => props.modelValue, (open) => {
+  if (open) {
+    form.value = emptyForm()
+    localError.value = null
+  }
+})
 
 async function onFileChange(e: Event): Promise<void> {
   const target = e.target as HTMLInputElement
   const file = target.files?.[0]
   if (!file) return
-
-  uploadError.value = ''
-  isCompressing.value = true
-  originalSize.value = file.size
-
+  isUploading.value = true
   try {
-    // 1) Compress ke WebP
-    const compressed = await compressToWebP(file, { quality: 0.8, maxWidth: 1280, maxHeight: 1280 })
-    compressedSize.value = compressed.size
-
-    // 2) Preview lokal
-    if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
-    previewUrl.value = URL.createObjectURL(compressed)
-
-    // 3) Upload ke Supabase Storage
-    isCompressing.value = false
-    isUploading.value = true
+    const compressed = await compressToWebP(file)
     const result = await store.uploadImage(compressed)
-    if (result.success && result.url) {
-      form.image = result.url
+    if (!result.success || !result.url) {
+      localError.value = result.error ?? 'Gagal mengupload gambar.'
     } else {
-      uploadError.value = result.error ?? 'Gagal upload gambar.'
+      form.value.image = result.url
     }
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Gagal memproses gambar.'
-    uploadError.value = message
+  } catch (err) {
+    localError.value = err instanceof Error ? err.message : 'Gagal memproses gambar.'
   } finally {
     isUploading.value = false
-    isCompressing.value = false
+    if (fileInputRef.value) fileInputRef.value.value = ''
   }
-}
-
-function removeImage(): void {
-  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
-  previewUrl.value = ''
-  form.image = ''
-  originalSize.value = 0
-  compressedSize.value = 0
 }
 
 async function onSubmit(): Promise<void> {
-  if (isUploading.value || isCompressing.value) return
-
-  const result = await store.createEvent({
-    title: form.title,
-    date: form.date,
-    quota: form.quota,
-    location: form.location,
-    image: form.image,
-    description: form.description,
-  })
-
-  if (result.success && result.event) {
-    emit('created', result.event.id)
-    isOpen.value = false
-  } else {
-    alert(result.error ?? 'Gagal membuat event.')
+  if (!canSubmit.value) {
+    localError.value = 'Mohon lengkapi judul, tanggal, lokasi, dan kuota.'
+    return
   }
+  localError.value = null
+  const payload: EventFormData = {
+    title: form.value.title.trim(),
+    date: form.value.date,
+    quota: Number(form.value.quota),
+    location: form.value.location.trim(),
+    image: form.value.image,
+    description: form.value.description,
+  }
+  const result = await store.createEvent(payload)
+  if (!result.success || !result.event) {
+    localError.value = result.error ?? 'Gagal membuat event.'
+    return
+  }
+  emit('created', result.event.id)
+  emit('update:modelValue', false)
 }
 </script>
 
@@ -143,20 +110,18 @@ async function onSubmit(): Promise<void> {
   <UiAppModal
     v-model="isOpen"
     title="Buat Event Komunitas Baru"
-    subtitle="Lengkapi data berikut untuk merilis agenda baru. Cover bersifat opsional."
-    max-width="max-w-2xl"
-    :loading="store.isSubmitting"
+    subtitle="Lengkapi data berikut untuk merilis agenda baru."
+    :loading="store.isSubmitting || isUploading"
   >
-    <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+    <form class="p-6 space-y-4 max-h-[70vh] overflow-y-auto" @submit.prevent="onSubmit">
+      <UiFormField
+        v-model="form.title"
+        label="Judul / Nama Event"
+        placeholder="Contoh: Friendship Gathering & BBQ"
+        required
+      />
+
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="sm:col-span-2">
-          <UiFormField
-            v-model="form.title"
-            label="Judul / Nama Event"
-            placeholder="Contoh: Friendship Gathering & BBQ"
-            required
-          />
-        </div>
         <UiFormField
           v-model="form.date"
           label="Tanggal & Waktu"
@@ -179,110 +144,62 @@ async function onSubmit(): Promise<void> {
         required
       />
 
-      <UiFormField
-        v-model="form.description"
-        label="Deskripsi Ringkas Event"
-        placeholder="Tuliskan agenda seru atau syarat kegiatan di sini..."
-      />
-
-      <!-- Image Upload (Opsional) -->
       <div>
-        <div class="flex justify-between items-center mb-1">
-          <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-            Cover / Poster Event
-            <span class="text-slate-400 normal-case font-medium">(opsional)</span>
-          </label>
-        </div>
-
-        <!-- Empty state: pakai <label> agar klik dropzone langsung trigger file picker native -->
-        <label
-          v-if="!previewUrl"
-          for="event-cover-input"
-          class="block border-2 border-dashed border-slate-200 rounded-xl p-5 text-center bg-slate-50 hover:bg-slate-100 hover:border-emerald-300 transition-colors cursor-pointer"
-        >
-          <i class="fa-solid fa-cloud-arrow-up text-2xl text-slate-400 mb-2" />
-          <p class="text-xs text-slate-600 font-semibold">Klik untuk pilih gambar</p>
-          <p class="text-[11px] text-slate-400 mt-1">
-            Otomatis dikompres ke WebP untuk hemat storage. Boleh dikosongkan.
-          </p>
-          <input
-            id="event-cover-input"
-            type="file"
-            accept="image/*"
-            class="sr-only"
-            @change="onFileChange"
-          >
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+          Cover / Poster Event
         </label>
-
-        <!-- Preview + meta -->
-        <div v-else class="relative border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
-          <img :src="previewUrl" alt="Preview" class="w-full h-48 object-cover">
-          <button
-            type="button"
-            class="absolute top-2 right-2 bg-white/90 backdrop-blur-sm text-rose-600 hover:bg-rose-50 w-8 h-8 rounded-lg flex items-center justify-center shadow-sm"
-            :disabled="isUploading"
-            @click="removeImage"
-          >
-            <i class="fa-solid fa-trash-can text-xs" />
-          </button>
-
-          <div v-if="isCompressing || isUploading" class="absolute inset-0 bg-white/80 flex items-center justify-center">
-            <div class="text-center">
-              <i class="fa-solid fa-circle-notch fa-spin text-emerald-600 text-xl" />
-              <p class="text-xs font-semibold text-slate-700 mt-2">
-                {{ isCompressing ? 'Mengompres ke WebP...' : 'Mengupload ke Supabase...' }}
-              </p>
-            </div>
-          </div>
-
-          <div class="p-3 bg-white border-t border-slate-100 flex justify-between text-[11px]">
-            <span class="text-slate-500">
-              Asli: <strong class="text-slate-700">{{ formatBytes(originalSize) }}</strong>
-            </span>
-            <span class="text-emerald-600 font-bold">
-              WebP: {{ formatBytes(compressedSize) }}
-              <span v-if="originalSize > 0 && compressedSize > 0">
-                ({{ Math.round((1 - compressedSize / originalSize) * 100) }}% lebih kecil)
-              </span>
-            </span>
-          </div>
-
-          <!-- Tombol ganti cover -->
-          <label
-            for="event-cover-input"
-            class="block p-2 bg-slate-50 border-t border-slate-100 text-center text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer"
-          >
-            <i class="fa-solid fa-rotate" /> Ganti Cover
-          </label>
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <input
-            id="event-cover-input"
+            ref="fileInputRef"
             type="file"
             accept="image/*"
-            class="sr-only"
+            class="text-xs text-slate-500 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+            :disabled="isUploading"
             @change="onFileChange"
           >
+          <div v-if="isUploading" class="text-xs text-slate-400">
+            <i class="fa-solid fa-spinner fa-spin" /> Mengompres & mengupload...
+          </div>
+          <div v-else-if="form.image" class="text-xs text-emerald-600 truncate max-w-full">
+            <i class="fa-solid fa-circle-check" /> Gambar terpasang
+          </div>
         </div>
-
-        <p v-if="uploadError" class="text-[11px] text-rose-600 mt-1 flex items-center gap-1">
-          <i class="fa-solid fa-circle-exclamation" /> {{ uploadError }}
-        </p>
-        <p v-else-if="form.image && !isUploading" class="text-[11px] text-emerald-600 mt-1 flex items-center gap-1">
-          <i class="fa-solid fa-circle-check" /> Gambar berhasil diupload
+        <p class="text-[11px] text-slate-400 mt-1">
+          Otomatis dikompres ke WebP (maks. 1MB). Kosongkan jika ingin poster default.
         </p>
       </div>
-    </div>
+
+      <UiFormField
+        v-model="form.description"
+        label="Deskripsi Singkat"
+        placeholder="Opsional, jelaskan agenda & target peserta..."
+        :rows="3"
+      />
+
+      <div
+        v-if="localError"
+        class="bg-rose-50 border border-rose-200 text-rose-700 text-xs p-3 rounded-xl"
+      >
+        <i class="fa-solid fa-circle-exclamation" /> {{ localError }}
+      </div>
+    </form>
 
     <template #footer>
-      <div class="flex gap-3">
-        <UiAppButton variant="secondary" :disabled="store.isSubmitting" @click="isOpen = false">
-          Batal
+      <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+        <UiAppButton
+          variant="secondary"
+          :disabled="store.isSubmitting || isUploading"
+          @click="isOpen = false"
+        >
+          <i class="fa-solid fa-xmark" /> Batal
         </UiAppButton>
         <UiAppButton
-          :loading="store.isSubmitting"
-          :disabled="isUploading || isCompressing"
+          variant="primary"
+          :disabled="!canSubmit || store.isSubmitting || isUploading"
           @click="onSubmit"
         >
-          <i class="fa-solid fa-floppy-disk" /> Simpan & Terbitkan
+          <i class="fa-solid fa-rocket" />
+          {{ store.isSubmitting ? 'Menyimpan...' : 'Rilis Event' }}
         </UiAppButton>
       </div>
     </template>

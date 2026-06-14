@@ -353,6 +353,9 @@ export const useAppStore = defineStore('app', {
         if (user) {
           this.authUser = user
           this.role = 'admin'
+        } else {
+          this.authUser = null
+          this.role = 'member'
         }
       } catch {
         this.authUser = null
