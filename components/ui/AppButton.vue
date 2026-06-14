@@ -20,13 +20,13 @@ const props = withDefaults(defineProps<Props>(), {
 const variantClass = computed(() => {
   switch (props.variant) {
     case 'secondary':
-      return 'border border-slate-200 text-slate-600 bg-white hover:bg-slate-50'
+      return 'border border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
     case 'danger':
       return 'bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-100'
     case 'ghost':
       return 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'
     default:
-      return 'bg-slate-900 hover:bg-slate-800 text-white shadow-md'
+      return 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-100'
   }
 })
 

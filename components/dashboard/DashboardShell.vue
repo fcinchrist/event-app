@@ -33,7 +33,7 @@ function isActive(to: string): boolean {
   <div class="flex flex-col lg:flex-row gap-6 lg:gap-8">
     <!--
       ============================================
-      Sidebar (desktop only)
+      Sidebar (desktop only) — warna aktif: emerald (standar brand)
       ============================================
       Daftar menu navigasi dashboard dengan NuxtLink ke route berbeda.
       URL masing-masing sudah terpisah sehingga bisa di-bookmark:
@@ -47,8 +47,9 @@ function isActive(to: string): boolean {
     <nav class="hidden lg:flex w-64 shrink-0 flex-col gap-2 border-r border-slate-200 pr-6">
       <div
         v-if="props.sectionLabel"
-        class="text-xs font-bold text-slate-400 uppercase tracking-widest px-3 mb-3"
+        class="text-xs font-bold text-emerald-600 uppercase tracking-widest px-3 mb-3 flex items-center gap-2"
       >
+        <span class="w-1.5 h-4 rounded-full bg-emerald-500" />
         {{ props.sectionLabel }}
       </div>
       <NuxtLink
@@ -57,8 +58,8 @@ function isActive(to: string): boolean {
         :to="item.to"
         class="px-4 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5 text-left w-full"
         :class="isActive(item.to)
-          ? 'bg-slate-900 text-white'
-          : 'hover:bg-slate-100 text-slate-600'"
+          ? 'bg-emerald-600 text-white shadow-md shadow-emerald-100'
+          : 'hover:bg-emerald-50 text-slate-600 hover:text-emerald-700'"
       >
         <i :class="item.icon" class="w-4 text-center" />
         {{ item.label }}

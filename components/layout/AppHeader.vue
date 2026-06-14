@@ -7,13 +7,8 @@ const route = useRoute()
 
 const isHome = computed(() => route.path === '/')
 
-// Inisialisasi auth saat mount; di server sudah ditangani middleware auth.ts
-// (yang sudah men-set authUser dari cookie).
-onMounted(async () => {
-  if (store.authUser === null) {
-    await store.initAuth()
-  }
-})
+// Catatan: initAuth sudah dipanggil di app.vue (root) agar sinkron
+// di SSR + client. Tidak perlu dipanggil lagi di sini.
 
 // Hamburger memicu drawer global (satu hamburger, satu drawer untuk
 // semua halaman: publik maupun dashboard). State dikelola oleh composable
@@ -37,13 +32,23 @@ function handleLogout(): Promise<void> {
 </script>
 
 <template>
+  <!--
+    ============================================
+    AppHeader — Navbar (background putih)
+    ============================================
+    Background tetap putih. Yang di-tweak:
+    - Tombol "Admin Login" / "Dashboard" / "Halaman Utama" — emerald primary
+    - Email chip admin — emerald primary (sama dengan tombol di sebelahnya)
+    - Tombol "Logout" — full red (rose) dengan shadow
+
+    Karena initAuth sudah jalan di SSR (lihat app.vue), authUser sudah
+    tersedia di server dan di-hydrate langsung ke client — tidak ada
+    ClientOnly wrap, tidak ada jumping/flash saat refresh.
+  -->
   <header class="bg-white border-b border-slate-200 sticky top-0 z-50 px-4 py-3">
     <div class="max-w-7xl mx-auto flex justify-between items-center gap-3">
       <!--
         Kiri: hamburger (mobile) + brand.
-        Hamburger memicu emit `toggleNav` agar parent (layout/page)
-        bisa membuka drawer/sidebar mobile. Di desktop, hamburger
-        disembunyikan karena navigasi pakai menu horizontal.
       -->
       <div class="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
@@ -72,58 +77,56 @@ function handleLogout(): Promise<void> {
 
       <!--
         Kanan header (desktop saja):
-        Route-aware nav + email chip + logout.
-        Di mobile, semua ini dipindahkan ke drawer yang dipicu hamburger.
+        - Tombol "Dashboard" / "Admin Login" / "Halaman Utama" — emerald primary
+        - Email chip admin — emerald primary (sama dengan tombol di sebelahnya)
+        - Tombol Logout — full red (rose) dengan shadow
+
+        Dimensi placeholder skeleton (saat SSR pertama sebelum initAuth
+        selesai) disamakan dengan tombol aslinya (h-7 = py-1.5 + text-xs)
+        supaya tidak ada layout shift saat hydration.
       -->
-      <ClientOnly>
-        <div class="hidden sm:flex items-center gap-2">
-          <template v-if="isHome">
-            <NuxtLink
-              v-if="store.isAdminLoggedIn"
-              to="/dashboard"
-              class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-emerald-600 bg-slate-100 hover:bg-emerald-50 transition-all border border-slate-200 flex items-center gap-1.5"
-            >
-              <i class="fa-solid fa-chart-line" /> Dashboard
-            </NuxtLink>
-            <NuxtLink
-              v-else
-              to="/admin/login"
-              class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-emerald-600 bg-slate-100 hover:bg-emerald-50 transition-all border border-slate-200 flex items-center gap-1.5"
-            >
-              <i class="fa-solid fa-lock" /> Admin Login
-            </NuxtLink>
-          </template>
-          <template v-else>
-            <NuxtLink
-              to="/"
-              class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-emerald-600 bg-slate-100 hover:bg-emerald-50 transition-all border border-slate-200 flex items-center gap-1.5"
-            >
-              <i class="fa-solid fa-house" /> Halaman Utama
-            </NuxtLink>
-          </template>
-
-          <!-- Logged in: tampilkan email chip + logout -->
-          <template v-if="store.isAdminLoggedIn">
-            <span class="bg-slate-900 text-emerald-400 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 max-w-[180px] truncate">
-              <i class="fa-solid fa-shield-halved" />
-              <span class="truncate">{{ store.authUser?.email }}</span>
-            </span>
-            <button
-              class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 transition-all border border-slate-200 flex items-center gap-1.5"
-              @click="handleLogout"
-            >
-              <i class="fa-solid fa-arrow-right-from-bracket" /> Logout
-            </button>
-          </template>
-        </div>
-
-        <!-- Skeleton sebelum client hydration -->
-        <template #fallback>
-          <div class="hidden sm:flex items-center gap-2">
-            <div class="h-7 w-24 bg-slate-100 rounded-lg animate-pulse" />
-          </div>
+      <div class="hidden sm:flex items-center gap-2">
+        <template v-if="isHome">
+          <NuxtLink
+            v-if="store.isAdminLoggedIn"
+            to="/dashboard"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm shadow-emerald-100 transition-all flex items-center gap-1.5"
+          >
+            <i class="fa-solid fa-chart-line" /> Dashboard
+          </NuxtLink>
+          <NuxtLink
+            v-else
+            to="/admin/login"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm shadow-emerald-100 transition-all flex items-center gap-1.5"
+          >
+            <i class="fa-solid fa-lock" /> Admin Login
+          </NuxtLink>
         </template>
-      </ClientOnly>
+        <template v-else>
+          <NuxtLink
+            to="/"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm shadow-emerald-100 transition-all flex items-center gap-1.5"
+          >
+            <i class="fa-solid fa-house" /> Halaman Utama
+          </NuxtLink>
+        </template>
+
+        <!-- Logged in: tampilkan email chip + logout -->
+        <template v-if="store.isAdminLoggedIn">
+          <!-- Email chip: emerald primary (match tombol brand) -->
+          <span class="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 max-w-[180px] truncate shadow-sm shadow-emerald-100">
+            <i class="fa-solid fa-shield-halved" />
+            <span class="truncate">{{ store.authUser?.email }}</span>
+          </span>
+          <!-- Logout: full red (rose) -->
+          <button
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 shadow-sm shadow-rose-100 transition-all flex items-center gap-1.5"
+            @click="handleLogout"
+          >
+            <i class="fa-solid fa-arrow-right-from-bracket" /> Logout
+          </button>
+        </template>
+      </div>
     </div>
   </header>
 </template>

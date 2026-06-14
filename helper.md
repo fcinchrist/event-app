@@ -52,6 +52,8 @@ This application is a **web-based Event Management System** built using:
 * No hardcoded company branding
 * No direct database model usage in UI
 * No direct usage of Supabase response objects in application layers
+* **No `LoadingSpinner` or rotating spinners for page/section loading** — every loading state must use a Skeleton placeholder
+* **No inline ad-hoc skeletons (raw `animate-pulse` divs) in pages** — always compose the existing `SkeletonBlock` / `SkeletonCard` / feature-specific skeleton components
 
 ---
 
@@ -199,7 +201,8 @@ Any deviation is prohibited.
       Badge.vue
       Table.vue
       Pagination.vue
-      LoadingSpinner.vue
+      SkeletonBlock.vue
+      SkeletonCard.vue
       EmptyState.vue
       ErrorState.vue
       FormField.vue
@@ -826,6 +829,52 @@ Forbidden:
 
 ---
 
+## ⏳ Loading State (Skeleton-only)
+
+Every page and section that waits for asynchronous data (fetch, mutation,
+revalidation) **must** render a Skeleton placeholder that mirrors the final
+layout. Spinners / loading icons are prohibited for these scenarios.
+
+### Required Skeleton Components
+
+```txt
+/components/ui
+  SkeletonBlock.vue   ← primitive (variants: block, text, bar, pill, circle)
+  SkeletonCard.vue    ← generic card-shaped skeleton
+
+/components/dashboard
+  DashboardKpiSkeleton.vue          ← 4 KPI cards (Ringkasan Dashboard)
+  DashboardEventsTableSkeleton.vue  ← events table (Kelola Event)
+```
+
+Domain/feature pages may compose their own skeleton file inside the
+appropriate feature folder (e.g. `components/dashboard/*Skeleton.vue`) using
+`SkeletonBlock` as the only building block.
+
+### When to show a skeleton
+
+Show a skeleton when the corresponding `store.isLoading` (or any equivalent
+`pending` flag) is `true`. Once data is available, swap to the real component
+in the same `v-else` branch — do not keep the skeleton mounted.
+
+### Rules
+
+* Skeleton must **mirror the real layout** (columns, rows, paddings, icon
+  positions) so the swap is visually stable and avoids layout shift.
+* Use `bg-slate-200/70 animate-pulse` (already baked into `SkeletonBlock`) —
+  do not invent new color tokens for skeleton.
+* Buttons and isolated actions may still use `LoadingSpinner` semantics via
+  button `loading` prop; the rule above applies to *page/section* loading.
+* Every new page introduced to the app must come with a matching skeleton.
+
+### Forbidden
+
+* Spinner / rotating icon for whole-page or whole-section loading.
+* Random pulsing divs in pages that bypass `SkeletonBlock`.
+* Skeletons that don't match the real component dimensions.
+
+---
+
 # 🛡️ Middleware
 
 ## auth.global.ts
@@ -952,6 +1001,7 @@ if (isEvent(data)) {
 * No implicit typing
 * No direct Supabase access outside infrastructure
 * No business logic in components
+* No `LoadingSpinner` for page/section loading — Skeleton is the only allowed loading UX
 * All list endpoints must support pagination
 * All API responses must follow a standard format
 * All reusable UI components belong in `/components/ui`

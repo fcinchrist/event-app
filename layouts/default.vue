@@ -57,6 +57,7 @@ onMounted(async () => {
       Auto-close saat: backdrop di-tap, item dipilih, route berubah,
       tombol close ditekan.
       Di desktop (`lg:` ke atas) drawer ini tidak pernah muncul.
+      Warna aktif: emerald-600 (standar brand, sama dengan desktop sidebar).
       ============================================
     -->
     <Teleport to="body">
@@ -111,12 +112,15 @@ onMounted(async () => {
 
           <nav class="flex-grow p-4 space-y-1.5 overflow-y-auto">
             <!-- ============ Halaman Publik ============ -->
-            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-1 pb-1.5">
-              Halaman
+            <div class="flex items-center gap-2 px-4 pt-1 pb-1.5">
+              <span class="w-1.5 h-3.5 rounded-full bg-emerald-500" />
+              <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
+                Halaman
+              </div>
             </div>
             <button
               v-if="!isHome"
-              class="w-full px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5 text-left hover:bg-slate-100 text-slate-600"
+              class="w-full px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5 text-left hover:bg-emerald-50 text-slate-600 hover:text-emerald-700"
               @click="goTo('/')"
             >
               <i class="fa-solid fa-house w-4 text-center" />
@@ -125,15 +129,18 @@ onMounted(async () => {
 
             <!-- ============ Sub-menu Dashboard (hanya di /dashboard*) ============ -->
             <template v-if="isDashboard">
-              <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-1.5">
-                Panel Operasional
+              <div class="flex items-center gap-2 px-4 pt-3 pb-1.5">
+                <span class="w-1.5 h-3.5 rounded-full bg-emerald-500" />
+                <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
+                  Panel Operasional
+                </div>
               </div>
               <NuxtLink
                 to="/dashboard"
                 class="block px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5"
                 :class="route.path === '/dashboard' || route.path === '/dashboard/'
-                  ? 'bg-slate-900 text-white'
-                  : 'hover:bg-slate-100 text-slate-600'"
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-100'
+                  : 'hover:bg-emerald-50 text-slate-600 hover:text-emerald-700'"
                 @click="mobileNav.close()"
               >
                 <i class="fa-solid fa-chart-line w-4 text-center" />
@@ -143,8 +150,8 @@ onMounted(async () => {
                 to="/dashboard/events"
                 class="block px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5"
                 :class="route.path.startsWith('/dashboard/events')
-                  ? 'bg-slate-900 text-white'
-                  : 'hover:bg-slate-100 text-slate-600'"
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-100'
+                  : 'hover:bg-emerald-50 text-slate-600 hover:text-emerald-700'"
                 @click="mobileNav.close()"
               >
                 <i class="fa-solid fa-list-check w-4 text-center" />
@@ -155,8 +162,11 @@ onMounted(async () => {
             <!-- ============ Auth ============ -->
             <ClientOnly>
               <template v-if="store.isAdminLoggedIn">
-                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-1.5">
-                  Akun Admin
+                <div class="flex items-center gap-2 px-4 pt-3 pb-1.5">
+                  <span class="w-1.5 h-3.5 rounded-full bg-emerald-500" />
+                  <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
+                    Akun Admin
+                  </div>
                 </div>
                 <div class="px-4 py-2 bg-slate-900 text-emerald-400 rounded-xl text-xs font-bold truncate flex items-center gap-2">
                   <i class="fa-solid fa-circle-user" />
@@ -171,11 +181,14 @@ onMounted(async () => {
                 </button>
               </template>
               <template v-else>
-                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-1.5">
-                  Akun
+                <div class="flex items-center gap-2 px-4 pt-3 pb-1.5">
+                  <span class="w-1.5 h-3.5 rounded-full bg-emerald-500" />
+                  <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
+                    Akun
+                  </div>
                 </div>
                 <button
-                  class="w-full px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5 text-left hover:bg-slate-100 text-slate-600"
+                  class="w-full px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5 text-left hover:bg-emerald-50 text-slate-600 hover:text-emerald-700"
                   @click="goTo('/admin/login')"
                 >
                   <i class="fa-solid fa-lock w-4 text-center" />

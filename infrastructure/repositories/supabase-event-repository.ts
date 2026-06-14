@@ -97,6 +97,35 @@ export class SupabaseEventRepository implements EventRepository {
     return mapEventRow(data)
   }
 
+  async update(id: string, payload: EventFormData): Promise<Event> {
+    const supabase = useSupabaseClient()
+
+    const dateIso = new Date(payload.date).toISOString()
+    const quotaNumber = typeof payload.quota === 'string'
+      ? parseInt(payload.quota, 10)
+      : payload.quota
+
+    const { data, error } = await supabase
+      .from('events')
+      .update({
+        title: payload.title.trim(),
+        description: (payload.description ?? '').trim(),
+        date: dateIso,
+        location: payload.location.trim(),
+        quota: quotaNumber,
+        image: payload.image ?? '',
+      })
+      .eq('id', id)
+      .select('*')
+      .single()
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    return mapEventRow(data)
+  }
+
   async delete(id: string): Promise<void> {
     const supabase = useSupabaseClient()
     const { error } = await supabase

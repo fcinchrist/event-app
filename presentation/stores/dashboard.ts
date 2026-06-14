@@ -6,6 +6,7 @@ import { SupabaseEventRepository } from '~/infrastructure/repositories/supabase-
 import { GetEvents } from '~/application/use-cases/get-events'
 import { GetEventById } from '~/application/use-cases/get-event-by-id'
 import { CreateEvent } from '~/application/use-cases/create-event'
+import { UpdateEvent } from '~/application/use-cases/update-event'
 import { DeleteEvent } from '~/application/use-cases/delete-event'
 import { UploadEventImage } from '~/application/use-cases/upload-event-image'
 import { UpdateEventStatus } from '~/application/use-cases/update-event-status'
@@ -38,7 +39,9 @@ export const useDashboardStore = defineStore('dashboard', {
     page: 1,
     limit: 10,
     search: '',
-    isLoading: false,
+    // isLoading default TRUE agar render pertama menampilkan skeleton
+    // sampai fetchEvents() pertama selesai (lihat helper.md: Loading State).
+    isLoading: true,
     isSubmitting: false,
     error: null,
     selectedEvent: null,
@@ -94,6 +97,26 @@ export const useDashboardStore = defineStore('dashboard', {
         return { success: true, error: null, event }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Gagal membuat event.'
+        this.error = message
+        return { success: false, error: message, event: null }
+      } finally {
+        this.isSubmitting = false
+      }
+    },
+
+    async updateEvent(id: string, payload: EventFormData): Promise<{ success: boolean; error: string | null; event: Event | null }> {
+      this.isSubmitting = true
+      this.error = null
+      try {
+        const repo = getEventRepository()
+        const useCase = new UpdateEvent(repo)
+        const event = await useCase.execute({ id, ...payload })
+        // Sinkronkan dengan list lokal
+        this.events = this.events.map((e) => (e.id === id ? event : e))
+        if (this.selectedEvent?.id === id) this.selectedEvent = event
+        return { success: true, error: null, event }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Gagal memperbarui event.'
         this.error = message
         return { success: false, error: message, event: null }
       } finally {

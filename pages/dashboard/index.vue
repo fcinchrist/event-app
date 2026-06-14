@@ -87,18 +87,22 @@ onMounted(async () => {
     <section class="space-y-6">
       <header class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
-          <h2 class="font-extrabold text-2xl text-slate-900">Ringkasan Dashboard</h2>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="w-1.5 h-6 rounded-full bg-emerald-500" />
+            <h2 class="font-extrabold text-2xl text-emerald-700">Ringkasan Dashboard</h2>
+          </div>
           <p class="text-xs text-slate-500">
             Statistik dan agenda terbaru komunitas {{ config.public.companyName }}.
           </p>
         </div>
-        <UiAppButton @click="openAdd">
+        <UiAppButton variant="primary" @click="openAdd">
           <i class="fa-solid fa-plus-circle" /> Buat Event Baru
         </UiAppButton>
       </header>
 
-      <!-- KPI -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- KPI: 4 kartu emerald, atau skeleton saat loading -->
+      <DashboardKpiSkeleton v-if="store.isLoading" />
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <DashboardStatCard
           label="Total Event Aktif"
           :value="kpi.totalEvents"
@@ -111,7 +115,7 @@ onMounted(async () => {
           label="Total Reservasi"
           :value="kpi.totalReservations"
           icon="fa-solid fa-ticket"
-          tone="indigo"
+          tone="emerald"
           hint="Akumulasi semua event"
           hint-icon="fa-solid fa-arrow-trend-up"
         />
@@ -127,27 +131,70 @@ onMounted(async () => {
           label="Persentase Kehadiran"
           :value="`${kpi.percent}%`"
           icon="fa-solid fa-chart-pie"
-          tone="slate"
+          tone="emerald"
           hint="Tingkat kehadiran global"
           hint-icon="fa-solid fa-percent"
         />
       </div>
 
-      <!-- Charts Row -->
+      <!-- Charts Row: skeleton untuk donut + occupancy saat loading -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <DashboardDonutChart
+          v-if="store.isLoading"
+          class="lg:col-span-1"
+          :present-count="0"
+          :absent-count="0"
+        />
+        <DashboardDonutChart
+          v-else
           class="lg:col-span-1"
           :present-count="kpi.presentCount"
           :absent-count="kpi.absentCount"
         />
+
+        <!-- Occupancy skeleton: 5 baris bar dengan label + value -->
+        <div
+          v-if="store.isLoading"
+          class="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"
+        >
+          <UiSkeletonBlock variant="bar" width="w-40" height="h-4" rounded="rounded" />
+          <UiSkeletonBlock variant="bar" width="w-64" height="h-2.5" class="mt-2" />
+          <div class="space-y-4 my-6">
+            <div v-for="i in 5" :key="`occ-${i}`" class="space-y-1.5">
+              <div class="flex justify-between">
+                <UiSkeletonBlock variant="bar" width="w-2/3" height="h-3" />
+                <UiSkeletonBlock variant="bar" width="w-16" height="h-3" />
+              </div>
+              <UiSkeletonBlock variant="bar" width="w-full" height="h-2.5" rounded="rounded-full" />
+            </div>
+          </div>
+        </div>
         <DashboardOccupancyList
+          v-else
           class="lg:col-span-2"
           :items="occupancyItems"
         />
       </div>
 
-      <!-- Live Feed -->
-      <DashboardRecentActivity :logs="recentActivity" />
+      <!-- Recent Activity: skeleton untuk list check-in -->
+      <div
+        v-if="store.isLoading"
+        class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"
+      >
+        <UiSkeletonBlock variant="bar" width="w-48" height="h-4" />
+        <UiSkeletonBlock variant="bar" width="w-80" height="h-2.5" class="mt-2" />
+        <div class="divide-y divide-slate-100 mt-4">
+          <div v-for="i in 5" :key="`act-${i}`" class="py-3 flex items-center gap-3">
+            <UiSkeletonBlock variant="circle" width="w-8" height="h-8" />
+            <div class="flex-grow space-y-1.5 min-w-0">
+              <UiSkeletonBlock variant="bar" width="w-1/3" height="h-3" />
+              <UiSkeletonBlock variant="bar" width="w-2/3" height="h-2.5" />
+            </div>
+            <UiSkeletonBlock variant="bar" width="w-20" height="h-4" />
+          </div>
+        </div>
+      </div>
+      <DashboardRecentActivity v-else :logs="recentActivity" />
     </section>
 
     <DashboardAddEventModal v-model="showAddModal" @created="onCreated" />
