@@ -15,6 +15,9 @@ export interface EventRow {
   quota: number
   image: string
   status: string
+  // Optional FK to `event_categories.id`. PostgREST returns `null`
+  // for rows that have no category, so we accept both shapes here.
+  category_id: string | null
   created_at: string
   updated_at: string
 }
@@ -23,11 +26,13 @@ function isEventRow(value: unknown): value is EventRow {
   if (typeof value !== 'object' || value === null) return false
   const v = value as Record<string, unknown>
   return (
-    typeof v.id === 'string' &&
-    typeof v.title === 'string' &&
-    typeof v.location === 'string' &&
-    typeof v.quota === 'number' &&
-    typeof v.date === 'string'
+    typeof v.id === 'string'
+    && typeof v.title === 'string'
+    && typeof v.location === 'string'
+    && typeof v.quota === 'number'
+    && typeof v.date === 'string'
+    // `category_id` is nullable; accept string or null.
+    && (typeof v.category_id === 'string' || v.category_id === null)
   )
 }
 
@@ -55,6 +60,7 @@ export function mapEventRow(row: unknown): Event {
     quota: row.quota,
     image: row.image,
     status: normalizeStatus(row.status),
+    categoryId: row.category_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

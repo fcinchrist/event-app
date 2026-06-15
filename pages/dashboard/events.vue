@@ -2,6 +2,7 @@
 import { useDashboardStore } from '~/presentation/stores/dashboard'
 import { useAppStore } from '~/presentation/stores/app'
 import { useRegistrationStore } from '~/presentation/stores/registration'
+import { useEventCategoryStore } from '~/presentation/stores/event-category'
 import { resolveEventImage } from '~/utils/event-image'
 import type { Event } from '~/domain/entities/event'
 import type { EventStatusValue } from '~/types/common'
@@ -14,6 +15,7 @@ definePageMeta({
 const store = useDashboardStore()
 const appStore = useAppStore()
 const regStore = useRegistrationStore()
+const categoryStore = useEventCategoryStore()
 const config = useRuntimeConfig()
 
 const showAddModal = ref(false)
@@ -28,6 +30,7 @@ const imageLoadMap = ref<Record<string, boolean>>({})
 const NAV_ITEMS = [
   { key: 'ringkasan', label: 'Ringkasan Dashboard', icon: 'fa-solid fa-chart-line', to: '/dashboard' },
   { key: 'manage', label: 'Kelola Event', icon: 'fa-solid fa-list-check', to: '/dashboard/events' },
+  { key: 'categories', label: 'Master Kategori', icon: 'fa-solid fa-tags', to: '/dashboard/categories' },
   { key: 'users', label: 'Master User', icon: 'fa-solid fa-users', to: '/dashboard/users' },
 ]
 
@@ -177,7 +180,18 @@ onMounted(async () => {
   await Promise.all(
     store.events.map((e) => regStore.fetchParticipants(e.id)),
   )
+  // Pre-fetch categories so the table can show the category name
+  // for each event (uses the cached `byId` map for lookup).
+  void categoryStore.fetchCategories()
 })
+
+// Resolve a category name for a row from the cached map. Returns
+// `null` when the event has no category so the cell can render
+// an em-dash placeholder.
+function categoryNameFor(categoryId: string | null): string | null {
+  if (!categoryId) return null
+  return categoryStore.byId[categoryId]?.name ?? null
+}
 </script>
 
 <template>
@@ -283,10 +297,11 @@ onMounted(async () => {
         <div class="hidden md:grid grid-cols-12 gap-3 px-5 py-3 bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">
           <div class="col-span-4">Event</div>
           <div class="col-span-2">Tanggal</div>
-          <div class="col-span-2">Lokasi</div>
+          <div class="col-span-1">Lokasi</div>
+          <div class="col-span-2">Kategori</div>
           <div class="col-span-1 text-center">Kuota</div>
           <div class="col-span-1 text-center">Status</div>
-          <div class="col-span-2 text-right">Aksi</div>
+          <div class="col-span-1 text-right">Aksi</div>
         </div>
 
         <!-- Rows -->
@@ -344,11 +359,28 @@ onMounted(async () => {
               </div>
 
               <!-- Lokasi -->
-              <div class="col-span-2 min-w-0">
+              <div class="col-span-1 min-w-0">
                 <p class="text-xs text-slate-700 truncate flex items-center gap-1">
                   <i class="fa-solid fa-location-dot text-rose-400 shrink-0" />
                   <span class="truncate">{{ event.location }}</span>
                 </p>
+              </div>
+
+              <!-- Kategori -->
+              <div class="col-span-2 min-w-0">
+                <span
+                  v-if="categoryNameFor(event.categoryId)"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200 max-w-full"
+                >
+                  <i class="fa-solid fa-tag text-[9px] shrink-0" />
+                  <span class="truncate">{{ categoryNameFor(event.categoryId) }}</span>
+                </span>
+                <span
+                  v-else
+                  class="text-[10px] text-slate-400 italic"
+                >
+                  —
+                </span>
               </div>
 
               <!-- Kuota -->
@@ -370,10 +402,10 @@ onMounted(async () => {
               </div>
 
               <!-- Aksi -->
-              <div class="col-span-2 flex items-center justify-end gap-1.5">
+              <div class="col-span-1 flex items-center justify-end gap-1">
                 <button
                   type="button"
-                  class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 border border-slate-200 transition-all relative"
+                  class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 border border-slate-200 transition-all relative"
                   title="Lihat & kelola peserta"
                   @click="openParticipants(event)"
                 >
@@ -387,7 +419,7 @@ onMounted(async () => {
                 </button>
                 <button
                   type="button"
-                  class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-200 transition-all"
+                  class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-200 transition-all"
                   title="Edit event"
                   :disabled="store.isSubmitting"
                   @click="openEdit(event)"
@@ -397,7 +429,7 @@ onMounted(async () => {
                 <button
                   v-if="event.status === 'Aktif' || event.status === 'Dibatalkan'"
                   type="button"
-                  class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-amber-700 hover:bg-amber-50 border border-slate-200 transition-all"
+                  class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-amber-700 hover:bg-amber-50 border border-slate-200 transition-all"
                   :title="event.status === 'Aktif' ? 'Nonaktifkan event' : 'Aktifkan event'"
                   :disabled="store.isSubmitting"
                   @click="handleToggleStatus(event)"
@@ -406,7 +438,7 @@ onMounted(async () => {
                 </button>
                 <button
                   type="button"
-                  class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-rose-700 hover:bg-rose-50 border border-slate-200 transition-all"
+                  class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-rose-700 hover:bg-rose-50 border border-slate-200 transition-all"
                   title="Hapus event"
                   @click="handleDelete(event)"
                 >
@@ -414,7 +446,6 @@ onMounted(async () => {
                 </button>
               </div>
             </div>
-
             <!-- Mobile: card view -->
             <div class="md:hidden flex gap-3">
               <div class="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 shrink-0 relative border border-slate-200">
@@ -458,6 +489,12 @@ onMounted(async () => {
                   <div class="flex items-center gap-1.5 truncate">
                     <i class="fa-solid fa-location-dot text-rose-400 w-3 text-center" />
                     <span class="truncate">{{ event.location }}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 truncate">
+                    <i class="fa-solid fa-tag text-emerald-500 w-3 text-center" />
+                    <span class="truncate">
+                      {{ categoryNameFor(event.categoryId) ?? 'Tanpa kategori' }}
+                    </span>
                   </div>
                   <div class="flex items-center gap-1.5">
                     <i class="fa-solid fa-user-group text-slate-400 w-3 text-center" />

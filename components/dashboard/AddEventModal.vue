@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useDashboardStore } from '~/presentation/stores/dashboard'
+import { useEventCategoryStore } from '~/presentation/stores/event-category'
 import { useImageCompressor } from '~/presentation/composables/useImageCompressor'
 import type { EventFormData } from '~/domain/entities/event'
 
@@ -15,6 +16,7 @@ const emit = defineEmits<{
 }>()
 
 const store = useDashboardStore()
+const categoryStore = useEventCategoryStore()
 const { compressToWebP } = useImageCompressor()
 
 interface FormState {
@@ -24,6 +26,7 @@ interface FormState {
   location: string
   image: string
   description: string
+  categoryId: string
 }
 
 function emptyForm(): FormState {
@@ -34,6 +37,7 @@ function emptyForm(): FormState {
     location: '',
     image: '',
     description: '',
+    categoryId: '',
   }
 }
 
@@ -58,6 +62,10 @@ watch(() => props.modelValue, (open) => {
   if (open) {
     form.value = emptyForm()
     localError.value = null
+    // Lazy-load categories the first time the modal opens. The
+    // store's `fetchCategories` is a no-op if it has been called
+    // before, so it is safe to call on every open.
+    void categoryStore.fetchCategories()
   }
 })
 
@@ -95,6 +103,9 @@ async function onSubmit(): Promise<void> {
     location: form.value.location.trim(),
     image: form.value.image,
     description: form.value.description,
+    // Empty string means "no category" — normalize to `null` so the
+    // repository writes SQL NULL on the FK column.
+    categoryId: form.value.categoryId || null,
   }
   const result = await store.createEvent(payload)
   if (!result.success || !result.event) {
@@ -143,6 +154,29 @@ async function onSubmit(): Promise<void> {
         placeholder="Contoh: Central Park / Ruang Aula Lantai 2"
         required
       />
+
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+          Kategori Kegiatan
+          <span class="text-slate-400 normal-case font-normal">(opsional)</span>
+        </label>
+        <select
+          v-model="form.categoryId"
+          class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        >
+          <option value="">— Tanpa kategori —</option>
+          <option
+            v-for="cat in categoryStore.categories"
+            :key="cat.id"
+            :value="cat.id"
+          >
+            {{ cat.name }}
+          </option>
+        </select>
+        <p class="text-[11px] text-slate-400 mt-1">
+          Kelola kategori di halaman Master Kategori pada menu sidebar.
+        </p>
+      </div>
 
       <div>
         <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">

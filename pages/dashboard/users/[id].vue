@@ -18,6 +18,7 @@ const config = useRuntimeConfig()
 const NAV_ITEMS = [
   { key: 'ringkasan', label: 'Ringkasan Dashboard', icon: 'fa-solid fa-chart-line', to: '/dashboard' },
   { key: 'manage', label: 'Kelola Event', icon: 'fa-solid fa-list-check', to: '/dashboard/events' },
+  { key: 'categories', label: 'Master Kategori', icon: 'fa-solid fa-tags', to: '/dashboard/categories' },
   { key: 'users', label: 'Master User', icon: 'fa-solid fa-users', to: '/dashboard/users' },
 ]
 

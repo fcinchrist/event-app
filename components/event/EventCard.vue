@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useAppStore } from '~/presentation/stores/app'
 import { useRegistrationStore } from '~/presentation/stores/registration'
+import { useEventCategoryStore } from '~/presentation/stores/event-category'
 import { resolveEventImage } from '~/utils/event-image'
 import { computed, ref } from 'vue'
 import type { Event } from '~/domain/entities/event'
@@ -11,6 +12,7 @@ const props = defineProps<{
 
 const store = useAppStore()
 const regStore = useRegistrationStore()
+const categoryStore = useEventCategoryStore()
 const imageLoaded = ref(false)
 // `false` until one of: (a) the original image has loaded, or (b) the
 // fallback image has also failed → in that case we hide the `<img>` and
@@ -23,6 +25,14 @@ const imageErrored = ref(false)
 // admin edits the event).
 const imageSrc = computed(() => resolveEventImage(props.event.image))
 const showImage = computed(() => imageSrc.value.length > 0 && !imageErrored.value)
+
+// Resolve the event's category name from the cached categories map.
+// Returns `null` when the event has no category so the template can
+// hide the pill entirely.
+const categoryName = computed<string | null>(() => {
+  if (!props.event.categoryId) return null
+  return categoryStore.byId[props.event.categoryId]?.name ?? null
+})
 </script>
 
 <template>
@@ -63,6 +73,13 @@ const showImage = computed(() => imageSrc.value.length > 0 && !imageErrored.valu
         >
           {{ props.event.title }}
         </NuxtLink>
+        <span
+          v-if="categoryName"
+          class="inline-flex items-center gap-1 mt-2 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold uppercase tracking-wider"
+        >
+          <i class="fa-solid fa-tag text-[10px]" />
+          {{ categoryName }}
+        </span>
         <p class="text-xs text-slate-500 mt-2 flex items-center gap-1.5">
           <i class="fa-solid fa-calendar-days text-slate-400" />
           <span>{{ store.formatDate(props.event.date) }}</span>

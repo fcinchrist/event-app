@@ -31,9 +31,10 @@ const PUBLIC_ITEMS: NavItem[] = [
 
 // Dashboard sub-menu, kept in sync with the desktop sidebar.
 const DASHBOARD_ITEMS: NavItem[] = [
-  { key: 'ringkasan', label: 'Ringkasan Dashboard', icon: 'fa-solid fa-chart-line', to: '/dashboard' },
-  { key: 'manage',    label: 'Kelola Event',        icon: 'fa-solid fa-list-check', to: '/dashboard/events' },
-  { key: 'users',     label: 'Master User',         icon: 'fa-solid fa-users',      to: '/dashboard/users' },
+  { key: 'ringkasan',   label: 'Ringkasan Dashboard', icon: 'fa-solid fa-chart-line', to: '/dashboard' },
+  { key: 'manage',      label: 'Kelola Event',        icon: 'fa-solid fa-list-check', to: '/dashboard/events' },
+  { key: 'categories',  label: 'Master Kategori',     icon: 'fa-solid fa-tags',       to: '/dashboard/categories' },
+  { key: 'users',       label: 'Master User',         icon: 'fa-solid fa-users',      to: '/dashboard/users' },
 ]
 
 function goTo(target: string): void {

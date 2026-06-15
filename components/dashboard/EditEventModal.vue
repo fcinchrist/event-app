@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useDashboardStore } from '~/presentation/stores/dashboard'
+import { useEventCategoryStore } from '~/presentation/stores/event-category'
 import { useImageCompressor } from '~/presentation/composables/useImageCompressor'
 import type { Event as DomainEvent, EventFormData } from '~/domain/entities/event'
 
@@ -16,6 +17,7 @@ const emit = defineEmits<{
 }>()
 
 const store = useDashboardStore()
+const categoryStore = useEventCategoryStore()
 const { compressToWebP } = useImageCompressor()
 
 interface FormState {
@@ -25,6 +27,7 @@ interface FormState {
   location: string
   image: string
   description: string
+  categoryId: string
 }
 
 function emptyForm(): FormState {
@@ -35,6 +38,7 @@ function emptyForm(): FormState {
     location: '',
     image: '',
     description: '',
+    categoryId: '',
   }
 }
 
@@ -78,11 +82,18 @@ watch(() => [props.modelValue, props.event] as const, ([open, event]) => {
       location: event.location,
       image: event.image,
       description: event.description,
+      // Pre-select the category that was set on the event (if any).
+      // Empty string means "no category" so the placeholder option is shown.
+      categoryId: event.categoryId ?? '',
     }
     localError.value = null
+    // Lazy-load categories the first time the modal opens. Safe
+    // to call on every open: the store is a no-op when already loaded.
+    void categoryStore.fetchCategories()
   } else if (open && !event) {
     form.value = emptyForm()
     localError.value = null
+    void categoryStore.fetchCategories()
   }
 })
 
@@ -127,6 +138,9 @@ async function onSubmit(): Promise<void> {
     location: form.value.location.trim(),
     image: form.value.image,
     description: form.value.description,
+    // Empty string means "no category" — normalize to `null` so the
+    // repository writes SQL NULL on the FK column.
+    categoryId: form.value.categoryId || null,
   }
   const result = await store.updateEvent(props.event.id, payload)
   if (!result.success || !result.event) {
@@ -176,6 +190,29 @@ async function onSubmit(): Promise<void> {
         placeholder="Contoh: Central Park / Ruang Aula Lantai 2"
         required
       />
+
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+          Kategori Kegiatan
+          <span class="text-slate-400 normal-case font-normal">(opsional)</span>
+        </label>
+        <select
+          v-model="form.categoryId"
+          class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        >
+          <option value="">— Tanpa kategori —</option>
+          <option
+            v-for="cat in categoryStore.categories"
+            :key="cat.id"
+            :value="cat.id"
+          >
+            {{ cat.name }}
+          </option>
+        </select>
+        <p class="text-[11px] text-slate-400 mt-1">
+          Kelola kategori di halaman Master Kategori pada menu sidebar.
+        </p>
+      </div>
 
       <div>
         <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">

@@ -17,6 +17,10 @@ interface AppState {
   selectedEvent: Event | null
   filterPeriode: FilterPeriode
   filterTanggal: string
+  // Optional category filter. `null` = no category filter applied
+  // (show events regardless of category, including those with no
+  // category). This is set by the public homepage's category pill row.
+  filterCategoryId: string | null
   page: number
   perPage: number
   events: Event[]
@@ -43,6 +47,7 @@ export const useAppStore = defineStore('app', {
     selectedEvent: null,
     filterPeriode: 'all',
     filterTanggal: '',
+    filterCategoryId: null,
     // Current page on the public UI. Pagination is server-side: see
     // `fetchEvents` → `repo.range()`, so each next/prev click triggers
     // a fresh request.
@@ -78,6 +83,12 @@ export const useAppStore = defineStore('app', {
       const todayStr = new Date().toISOString().slice(0, 10)
       return this.events.filter((e: Event) => {
         const eventStr = e.date.slice(0, 10)
+
+        // Category filter (independent of the date/period filter).
+        // `null` means "no category filter" → pass every event.
+        if (this.filterCategoryId !== null && e.categoryId !== this.filterCategoryId) {
+          return false
+        }
 
         if (this.filterPeriode === 'custom' && this.filterTanggal) {
           return eventStr === this.filterTanggal
@@ -239,6 +250,16 @@ export const useAppStore = defineStore('app', {
     clearDateFilter(): void {
       this.filterTanggal = ''
       this.filterPeriode = 'all'
+      this.page = 1
+    },
+
+    /**
+     * Set (or clear) the public homepage's category filter.
+     * `null` resets the filter. Resets the page cursor so the user
+     * lands on the first page of the new result set.
+     */
+    setCategoryFilter(categoryId: string | null): void {
+      this.filterCategoryId = categoryId
       this.page = 1
     },
 

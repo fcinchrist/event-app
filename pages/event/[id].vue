@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useAppStore } from '~/presentation/stores/app'
 import { useRegistrationStore } from '~/presentation/stores/registration'
+import { useEventCategoryStore } from '~/presentation/stores/event-category'
 import { resolveEventImage } from '~/utils/event-image'
 
 definePageMeta({
@@ -10,6 +11,7 @@ definePageMeta({
 const route = useRoute()
 const store = useAppStore()
 const regStore = useRegistrationStore()
+const categoryStore = useEventCategoryStore()
 
 // Local loading state for the detail page. `true` until the event has
 // been set (handles deep-link / refresh) or the store fetch completes.
@@ -40,10 +42,22 @@ async function ensureEventLoaded(id: string): Promise<void> {
     if (id) {
       void regStore.fetchParticipants(id)
     }
+    // Lazy-load categories so the category pill on this page can
+    // resolve `event.categoryId` to its name. No-op if already loaded.
+    void categoryStore.fetchCategories()
   } finally {
     isLoadingDetail.value = false
   }
 }
+
+// Resolve the category name for the currently selected event. Returns
+// `null` when the event has no category so the template can hide the
+// pill entirely. Uses the cached `byId` map for O(1) lookup.
+const categoryName = computed<string | null>(() => {
+  const id = store.selectedEvent?.categoryId
+  if (!id) return null
+  return categoryStore.byId[id]?.name ?? null
+})
 
 onMounted(() => {
   void ensureEventLoaded(eventId.value)
@@ -125,6 +139,13 @@ watch(
             <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
               {{ store.selectedEvent.title }}
             </h2>
+            <span
+              v-if="categoryName"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wider"
+            >
+              <i class="fa-solid fa-tag text-[11px]" />
+              {{ categoryName }}
+            </span>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs border-y border-slate-100 py-4 my-2">
               <div class="flex items-center gap-3">

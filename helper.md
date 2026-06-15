@@ -410,13 +410,63 @@ export interface Event {
   id: string
   title: string
   description: string
+  date: string
   location: string
-  startTime: string
-  endTime: string
-  capacity: number
+  quota: number
+  image: string
+  status: 'Aktif' | 'Dibatalkan' | 'Selesai'
+  // Optional reference to a master category. `null` means
+  // "uncategorized". The category name is resolved at the
+  // presentation layer via the category store; the domain only
+  // carries the foreign key.
+  categoryId: string | null
   createdAt: string
+  updatedAt: string
+}
+
+export interface EventFormData {
+  title: string
+  date: string
+  quota: number | string
+  location: string
+  image: string
+  description: string
+  // Use `''` in form state to mean "no category" so the Add/Edit
+  // modal can keep a single `<select>` with a placeholder option.
+  // Convert `''` to `null` when building the payload.
+  categoryId: string | null
 }
 ```
+
+---
+
+## Event Category (Master Kategori)
+
+Master kategori kegiatan yang dipakai untuk mengelompokkan event.
+ID format: `CAT-YYYY-NNNNN` (custom string ID sama dengan `USR-` dan
+`REG-` agar konsisten dan mudah dibaca manual).
+
+```ts
+export interface EventCategory {
+  id: string             // 'CAT-2026-00001'
+  name: string           // unik, case-insensitive
+  detail: string         // deskripsi singkat (boleh kosong)
+  createdAt: string
+  updatedAt: string
+}
+
+export interface EventCategoryFormData {
+  name: string
+  detail: string
+}
+```
+
+- Tabel: `public.event_categories`
+- Setiap event **boleh** punya satu category (FK nullable) atau
+  `categoryId = null` (uncategorized).
+- Sebuah category **tidak bisa dihapus** jika masih ada minimal satu
+  event yang mereferensikannya — dijaga oleh FK constraint
+  `ON DELETE RESTRICT` di level database.
 
 ---
 
@@ -540,6 +590,57 @@ create index idx_event_registrations_status on event_registrations(status);
 
 ---
 
+## event_categories
+
+Master kategori kegiatan. Dipakai sebagai FK opsional dari
+`events.category_id` agar event bisa dikelompokkan (misal:
+"Sport", "Workshop", "Gathering").
+
+```sql
+create table event_categories (
+  id         text primary key,                -- 'CAT-2026-00001'
+  name       text not null unique,
+  detail     text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_event_categories_name on event_categories (lower(name));
+```
+
+Kolom `events.category_id` (nullable, FK ke `event_categories.id`):
+
+```sql
+alter table events
+  add column category_id text
+    references event_categories(id) on delete restrict;
+```
+
+- `ON DELETE RESTRICT` (bukan `CASCADE` atau `SET NULL`): jika
+  masih ada event yang mereferensikan sebuah category, category
+  **tidak dapat dihapus** — error Postgres 23503 akan di-translate
+  menjadi pesan yang ramah di layer repository.
+- Tabel `event_categories` di-Reuse trigger `set_updated_at()` dari
+  migration `001_events.sql` untuk auto-update kolom `updated_at`.
+
+RLS policies:
+
+```sql
+-- Publik boleh baca
+create policy event_categories_read_public
+  on event_categories for select
+  to anon, authenticated
+  using (true);
+
+-- Hanya authenticated (admin) yang boleh write
+create policy event_categories_write_admin
+  on event_categories for all
+  to authenticated
+  using (true) with check (true);
+```
+
+---
+
 ## event_attendance
 
 *Deprecated.* Status kehadiran sudah di-collapse ke kolom `status`
@@ -568,9 +669,40 @@ Tabel ini tidak dibuat — cukup enum + kolom di tabel registrasi.
 
 ---
 
+## Event Category Rules
+
+* `name` wajib unik (constraint DB) — jika admin menyimpan nama yang
+  sudah ada, repository melempar error ramah
+  "A category with that name already exists." (Postgres error 23505).
+* `name` minimal 2 karakter (divalidasi di use case `CreateEventCategory`
+  dan `UpdateEventCategory`).
+* `detail` boleh kosong (default `''`).
+* Category **tidak bisa dihapus** jika minimal 1 event masih
+  mereferensikannya. Aturan ini ditegakkan di DB lewat FK
+  `ON DELETE RESTRICT`. Saat admin mencoba, repository
+  menerjemahkan error Postgres 23503 (foreign_key_violation)
+  menjadi:
+  > Category is in use by one or more events. Reassign or delete
+  > those events first.
+* Event boleh `categoryId = null` (uncategorized) — FK nullable.
+* Urutan list di UI selalu di-sort by `name` (case-insensitive) —
+  `event-category` store punya helper `insertSorted()` yang
+  mempertahankan urutan tersebut setelah mutasi lokal.
+* Lookup `event.categoryId` → `category.name` di komponen publik
+  (EventCard, event detail page, dashboard table) lewat getter
+  `byId` di store (O(1) map).
+
+---
+
 ## ID Generation Rules
 
-* Format ID publik: `USR-YYYY-NNNNN` untuk user, `REG-YYYY-NNNNN` untuk registrasi.
+* Format ID publik:
+  - `USR-YYYY-NNNNN` untuk user,
+  - `REG-YYYY-NNNNN` untuk registrasi,
+  - `CAT-YYYY-NNNNN` untuk event category.
+* Tipe union `IdPrefix = 'USR' | 'REG' | 'CAT'` di-export dari
+  [`application/use-cases/generate-id.ts`](application/use-cases/generate-id.ts:24)
+  — tambahkan prefix baru di sini kalau ada entitas baru.
 * `YYYY` = tahun saat create (UTC), `NNNNN` = 5 digit urut (zero-padded).
 * Generate via `generateUniqueId(prefix, exists)` di [`application/use-cases/generate-id.ts`](application/use-cases/generate-id.ts:24) — random 5 digit + retry sampai 10× kalau bentrok.
 * Setelah ID terbentuk, suffix ditulis manual ke `users.id` / `registrations.id` (kita tidak pakai auto-increment/UUID untuk konsistensi format).
@@ -603,6 +735,21 @@ Tabel ini tidak dibuat — cukup enum + kolom di tabel registrasi.
 
 * GetEvents
 * GetEventById
+* CreateEvent - `categoryId` opsional (`null` ⇒ uncategorized)
+* UpdateEvent - `categoryId` opsional
+* DeleteEvent
+* UpdateEventStatus
+* UploadEventImage
+
+---
+
+## Event Category Use Cases
+
+* GetEventCategories - list semua category, di-sort by `name` (case-insensitive).
+* GetEventCategoryById - lookup by id.
+* CreateEventCategory - validasi `name.length >= 2`; ID di-generate via `generateUniqueId('CAT', …)`.
+* UpdateEventCategory - validasi `name.length >= 2`.
+* DeleteEventCategory - gagal dengan error ramah jika ada event yang mereferensikan (Postgres 23503 ⇒ 23503 ⇒ "Category is in use by one or more events...").
 
 ---
 
@@ -643,8 +790,49 @@ export interface EventRepository {
   }): Promise<PaginatedResult<Event>>
 
   getById(id: string): Promise<Event | null>
+  create(payload: EventFormData): Promise<Event>
+  update(id: string, payload: EventFormData): Promise<Event>
+  delete(id: string): Promise<void>
+  updateStatus(id: string, status: EventStatusValue): Promise<Event>
+  uploadImage(file: File): Promise<string>
+  deleteImage(publicUrl: string): Promise<boolean>
 }
 ```
+
+`EventFormData.categoryId` adalah `string | null` — di
+`create()` / `update()` akan diteruskan ke kolom `category_id` (TEXT,
+nullable) di tabel `events`. Empty string di form state ⇒
+`null` di payload.
+
+---
+
+## Event Category Repository
+
+```ts
+export interface EventCategoryRepository {
+  list(): Promise<EventCategory[]>
+  getById(id: string): Promise<EventCategory | null>
+  create(input: EventCategoryFormData): Promise<EventCategory>
+  update(id: string, input: EventCategoryFormData): Promise<EventCategory>
+  delete(id: string): Promise<void>
+}
+```
+
+Behavior repository:
+
+* `list()` selalu mengembalikan data ter-sort by `name` (asc,
+  case-insensitive).
+* `create()` dan `update()` menerjemahkan Postgres error code
+  `23505` (unique_violation) menjadi
+  `Error('A category with that name already exists.')`.
+* `delete()` menerjemahkan Postgres error code `23503`
+  (foreign_key_violation, dari `ON DELETE RESTRICT` di
+  `events.category_id`) menjadi
+  `Error('Category is in use by one or more events. Reassign or delete those events first.')`.
+* ID untuk `create()` di-generate via
+  `generateUniqueId('CAT', exists)` (lihat
+  [`application/use-cases/generate-id.ts`](application/use-cases/generate-id.ts:24))
+  agar konsisten dengan `USR-` dan `REG-`.
 
 ---
 
@@ -886,6 +1074,30 @@ Mandatory:
 ```
 
 Used everywhere pagination exists.
+
+---
+
+## Event Category Store
+
+* State: `categories: EventCategory[]`, `isLoading`, `isSubmitting`, `error`.
+* `isLoading` **default `false`** (bukan `true`) — di-override ke `true`
+  hanya di halaman admin Categories yang memang menampilkan skeleton.
+  Halaman publik (home, event detail) tidak boleh menampilkan
+  skeleton untuk category dropdown.
+* Getter: `byId: Record<string, EventCategory>` — O(1) lookup
+  untuk EventCard / event detail / dashboard table supaya
+  `event.categoryId` bisa di-resolve ke `name` tanpa scan.
+* `fetchCategories()` **tidak wipe cache** saat error (pola
+  yang sama dengan registration store) — `categories` lama tetap
+  di state, `error` di-set, dan UI boleh render state terakhir
+  yang valid.
+* `createCategory()` / `updateCategory()` memanggil `insertSorted()`
+  setelah mutasi supaya list tetap urut by `name` (asc, case-insensitive,
+  pakai `localeCompare` dengan `sensitivity: 'base'`).
+* `deleteCategory()` meneruskan error dari use case verbatim — UI
+  menampilkan pesan "Category is in use by one or more events..."
+  (Postgres 23503 translation) atau "A category with that name
+  already exists." (23505) langsung ke admin.
 
 ---
 

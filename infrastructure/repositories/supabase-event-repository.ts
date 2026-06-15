@@ -89,6 +89,8 @@ export class SupabaseEventRepository implements EventRepository {
         location: payload.location.trim(),
         quota: quotaNumber,
         image: payload.image ?? '',
+        // `null` means "uncategorized". The FK column is nullable.
+        category_id: payload.categoryId ?? null,
         status: 'Aktif',
       })
       .select('*')
@@ -131,6 +133,9 @@ export class SupabaseEventRepository implements EventRepository {
         location: payload.location.trim(),
         quota: quotaNumber,
         image: newImage,
+        // `null` clears the category reference; an empty string from
+        // the form is converted to `null` by the use case.
+        category_id: payload.categoryId ?? null,
       })
       .eq('id', id)
       .select('*')

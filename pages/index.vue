@@ -89,11 +89,11 @@ watch(
         </div>
         <h4 class="font-bold text-slate-800 text-lg">Tidak Ada Event</h4>
         <p class="text-sm text-slate-500 mt-2 max-w-sm leading-relaxed">
-          Tidak ditemukan agenda kegiatan yang cocok dengan filter pencarian Anda. Coba ubah filter atau periode pencarian.
+          Tidak ditemukan agenda kegiatan yang cocok dengan filter pencarian Anda. Coba ubah filter, kategori, atau periode pencarian.
         </p>
         <button
           class="mt-5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5"
-          @click="store.clearDateFilter()"
+          @click="store.filterCategoryId = null; store.clearDateFilter()"
         >
           <i class="fa-solid fa-rotate-left" /> Reset Filter
         </button>

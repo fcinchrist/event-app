@@ -8,6 +8,8 @@ export interface CreateEventInput {
   location: string
   image: string
   description: string
+  // Optional FK to a master category. `null` / `''` means uncategorized.
+  categoryId: string | null
 }
 
 export class CreateEvent {
@@ -30,6 +32,11 @@ export class CreateEvent {
       throw new Error('Kuota peserta harus berupa angka lebih dari 0.')
     }
 
+    // Normalize the category id: treat empty string as "no category".
+    const categoryId = input.categoryId && input.categoryId.length > 0
+      ? input.categoryId
+      : null
+
     const payload: EventFormData = {
       title: input.title.trim(),
       date: input.date,
@@ -37,6 +44,7 @@ export class CreateEvent {
       quota: quotaNumber,
       image: input.image ?? '',
       description: (input.description ?? '').trim(),
+      categoryId,
     }
 
     return this.eventRepository.create(payload)
