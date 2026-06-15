@@ -85,7 +85,16 @@ export function tryMapRegistrationWithUserRow(
   row: unknown,
 ): RegistrationWithUser | null {
   if (row === null || row === undefined) return null
-  return mapRegistrationWithUserRow(row)
+  // Be lenient: a row whose `user` relation is null/missing (e.g. orphaned
+  // registration pointing at a deleted event_user) should not poison the
+  // whole list. Returning null lets the caller filter it out.
+  if (!isRegistrationRow(row)) return null
+  if (!row.user) return null
+  try {
+    return mapRegistrationWithUserRow(row)
+  } catch {
+    return null
+  }
 }
 
 /** Maps a row with the event JOIN → RegistrationWithEvent. Throws when `event` is not hydrated. */

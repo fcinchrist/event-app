@@ -47,7 +47,12 @@ export class SupabaseRegistrationRepository implements RegistrationRepository {
     }
 
     const rows: unknown[] = Array.isArray(data) ? data : []
-    return rows.map((r) => tryMapRegistrationWithUserRow(r) as RegistrationWithUser)
+    // `tryMapRegistrationWithUserRow` may legitimately return null for
+    // orphaned/invalid rows. Strip them so the caller never sees a
+    // half-broken list and the home page counter never silently drops to 0.
+    return rows
+      .map((r) => tryMapRegistrationWithUserRow(r))
+      .filter((r): r is RegistrationWithUser => r !== null)
   }
 
   async getById(id: string): Promise<Registration | null> {

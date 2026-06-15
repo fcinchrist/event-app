@@ -11,13 +11,44 @@ const regStore = useRegistrationStore()
 
 const SKELETON_COUNT = 6
 
-onMounted(async () => {
-  // Pre-fetch peserta per event untuk counter di EventCard.
-  // Tanpa ini, EventCard akan tampil 0/quota karena participantsByEvent belum di-hydrate.
-  await Promise.all(
-    store.events.map((e) => regStore.fetchParticipants(e.id)),
-  )
+// Pre-fetch jumlah peserta per event untuk counter "X/Y Terisi" di EventCard.
+//
+// Sebelumnya halaman ini memanggil `fetchParticipants` (query berat
+// dengan JOIN `user:event_users(*)`) hanya untuk menghitung jumlah
+// — itu boros bandwidth, dan kalau satu baris punya user null,
+// mapper lama melempar error yang di-catch dengan reset cache ke [],
+// sehingga counter "tiba-tiba jadi 0" setiap refresh.
+//
+// Sekarang pakai `fetchParticipantsCount` (SELECT count(*) saja, tanpa
+// JOIN) — ringan, tidak gagal pada orphaned rows, dan aman terhadap
+// error (cache yang sudah ada tidak dihapus saat request gagal).
+//
+// Penting: pakai `watch` (bukan `onMounted` saja) karena `store.events`
+// bisa masih kosong saat home page mount — layout `default.vue` yang
+// trigger `store.fetchEvents()` berjalan paralel. Tanpa watch, kalau
+// `store.events` masih [], `Promise.all([])` selesai instan tanpa
+// fetch apa-apa dan counter stuck di placeholder "—/N" selamanya.
+const fetchedEventIds = new Set<string>()
+async function syncEventCounts(): Promise<void> {
+  const pending = store.events
+    .map((e) => e.id)
+    .filter((id) => id && !fetchedEventIds.has(id))
+  if (pending.length === 0) return
+  for (const id of pending) {
+    fetchedEventIds.add(id)
+    void regStore.fetchParticipantsCount(id)
+  }
+}
+
+onMounted(() => {
+  void syncEventCounts()
 })
+watch(
+  () => store.events.map((e) => e.id).join('|'),
+  () => {
+    void syncEventCounts()
+  },
+)
 </script>
 
 <template>
