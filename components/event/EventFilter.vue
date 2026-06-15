@@ -80,15 +80,10 @@ function selectCategory(id: string | null): void {
             @click="store.setFilter('all')"
           >Semua</button>
           <button
-            :class="store.filterPeriode === 'aktif' ? 'bg-white text-emerald-700 shadow-sm font-bold' : 'text-slate-600 font-medium'"
+            :class="store.filterPeriode === 'mendatang' ? 'bg-white text-emerald-700 shadow-sm font-bold' : 'text-slate-600 font-medium'"
             class="px-3 py-1.5 rounded-lg text-xs transition-all"
-            @click="store.setFilter('aktif')"
-          >Akan Datang</button>
-          <button
-            :class="store.filterPeriode === 'hari-h' ? 'bg-white text-emerald-700 shadow-sm font-bold' : 'text-slate-600 font-medium'"
-            class="px-3 py-1.5 rounded-lg text-xs transition-all"
-            @click="store.setFilter('hari-h')"
-          >Hari H</button>
+            @click="store.setFilter('mendatang')"
+          >Mendatang</button>
           <button
             :class="store.filterPeriode === 'lampau' ? 'bg-white text-emerald-700 shadow-sm font-bold' : 'text-slate-600 font-medium'"
             class="px-3 py-1.5 rounded-lg text-xs transition-all"

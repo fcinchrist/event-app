@@ -45,7 +45,10 @@ export const useAppStore = defineStore('app', {
     role: 'member',
     authUser: null,
     selectedEvent: null,
-    filterPeriode: 'all',
+    // Default landing filter: show only events that are today or in the
+    // future. Visitors who land on the home page see what's coming up,
+    // not the long tail of past events.
+    filterPeriode: 'mendatang',
     filterTanggal: '',
     filterCategoryId: null,
     // Current page on the public UI. Pagination is server-side: see
@@ -92,6 +95,12 @@ export const useAppStore = defineStore('app', {
 
         if (this.filterPeriode === 'custom' && this.filterTanggal) {
           return eventStr === this.filterTanggal
+        }
+        // 'mendatang' = today + future (the merged "Akan Datang + Hari H"
+        // tab on the public homepage). Using `>=` so today's event still
+        // appears at the top of the list.
+        if (this.filterPeriode === 'mendatang') {
+          return new Date(eventStr) >= new Date(todayStr)
         }
         if (this.filterPeriode === 'aktif') {
           return new Date(eventStr) > new Date(todayStr)
