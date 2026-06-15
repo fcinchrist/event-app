@@ -160,6 +160,17 @@ onMounted(async () => {
                 <i class="fa-solid fa-list-check w-4 text-center" />
                 Kelola Event
               </NuxtLink>
+              <NuxtLink
+                to="/dashboard/users"
+                class="block px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5"
+                :class="route.path.startsWith('/dashboard/users')
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-100'
+                  : 'hover:bg-emerald-50 text-slate-600 hover:text-emerald-700'"
+                @click="mobileNav.close()"
+              >
+                <i class="fa-solid fa-users w-4 text-center" />
+                Master User
+              </NuxtLink>
             </template>
 
             <!-- ============ Auth ============ -->

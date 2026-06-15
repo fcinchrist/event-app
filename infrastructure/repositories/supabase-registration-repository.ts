@@ -2,6 +2,7 @@ import type {
   Registration,
   RegistrationInput,
   RegistrationStatus,
+  RegistrationWithEvent,
   RegistrationWithUser,
 } from '~/domain/entities/registration'
 import type {
@@ -11,9 +12,18 @@ import type {
 import { useSupabaseClient } from '~/infrastructure/supabase/client'
 import {
   mapRegistrationRow,
+  tryMapRegistrationWithEventRow,
   tryMapRegistrationWithUserRow,
 } from '~/infrastructure/mappers/registration-mapper'
 import { generateUniqueId } from '~/application/use-cases/generate-id'
+
+/**
+ * Cap jumlah baris yang boleh di-load untuk relasi one-to-many
+ * milik user (list event yang diikuti). 100 event historis per
+ * user sudah lebih dari cukup untuk Master User; jika di atas
+ * itu diasumsikan anomali data.
+ */
+const MAX_REGISTRATIONS_PER_USER = 100
 
 export class SupabaseRegistrationRepository implements RegistrationRepository {
   async getAll(
@@ -164,5 +174,43 @@ export class SupabaseRegistrationRepository implements RegistrationRepository {
       throw new Error(error.message)
     }
     return count ?? 0
+  }
+
+  async listByUserWithEvent(
+    userId: string,
+  ): Promise<RegistrationWithEvent[]> {
+    const supabase = useSupabaseClient()
+
+    // Embed event via PostgREST FK `event:events(*)`. Sortir event
+    // tidak bisa dilakukan langsung di level root (PostgREST hanya
+    // mengurutkan kolom pada tabel utama), sehingga kita pull raw
+    // dan sortir manual di JS dengan fallback `registered_at`.
+    const { data, error } = await supabase
+      .from('event_registrations')
+      .select('*, event:events(*)')
+      .eq('user_id', userId)
+      .limit(MAX_REGISTRATIONS_PER_USER)
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    const rows: unknown[] = Array.isArray(data) ? data : []
+    const mapped = rows
+      .map((r) => tryMapRegistrationWithEventRow(r))
+      .filter((r): r is RegistrationWithEvent => r !== null)
+
+    // Sort: event.date desc, lalu registered_at desc (tie-breaker).
+    mapped.sort((a, b) => {
+      const dateA = new Date(a.event.date).getTime()
+      const dateB = new Date(b.event.date).getTime()
+      if (dateA !== dateB) return dateB - dateA
+      return (
+        new Date(b.registeredAt).getTime() -
+        new Date(a.registeredAt).getTime()
+      )
+    })
+
+    return mapped
   }
 }

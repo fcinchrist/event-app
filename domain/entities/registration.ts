@@ -1,4 +1,5 @@
 import type { EventUser } from '~/domain/entities/event-user'
+import type { Event } from '~/domain/entities/event'
 
 /**
  * Status lifecycle sebuah registrasi (1 baris = 1 user × 1 event):
@@ -34,6 +35,15 @@ export interface Registration {
 
 export interface RegistrationWithUser extends Registration {
   user: EventUser
+}
+
+/**
+ * Hasil join registrasi dengan event (untuk halaman "event yang
+ * diikuti user" di master user). Relasi event di-load via PostgREST
+ * embed `event:events(*)`.
+ */
+export interface RegistrationWithEvent extends Registration {
+  event: Event
 }
 
 export interface RegistrationInput {

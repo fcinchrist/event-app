@@ -2,6 +2,7 @@ import type {
   Registration,
   RegistrationInput,
   RegistrationStatus,
+  RegistrationWithEvent,
   RegistrationWithUser,
 } from '~/domain/entities/registration'
 
@@ -43,4 +44,16 @@ export interface RegistrationRepository {
   delete(id: string): Promise<void>
 
   countByEvent(eventId: string): Promise<number>
+
+  /**
+   * Ambil seluruh registrasi seorang user dengan relasi event
+   * ter-hydrate (`event:events(*)`). Dipakai di halaman detail
+   * master user untuk menampilkan daftar event yang pernah
+   * diikuti.
+   *
+   * Hasil diurutkan: event terbaru (berdasarkan `event.date`
+   * descending), lalu `registered_at` descending sebagai tie
+   * breaker.
+   */
+  listByUserWithEvent(userId: string): Promise<RegistrationWithEvent[]>
 }
