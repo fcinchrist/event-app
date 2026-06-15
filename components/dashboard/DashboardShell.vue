@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { useAppStore } from '~/presentation/stores/app'
-
-interface NavItem {
-  key: string
-  label: string
-  icon: string
-  to: string
-}
+import type { NavItem } from '~/types/navigation'
 
 interface Props {
   items: NavItem[]
@@ -20,7 +14,8 @@ const props = withDefaults(defineProps<Props>(), {
 const appStore = useAppStore()
 const route = useRoute()
 
-// Aktifkan link sidebar jika path sama atau merupakan sub-path
+// Active when the route matches exactly, or sits under the target (sub-routes).
+// The root `/dashboard` alias is normalized to avoid a `/dashboard/` mismatch.
 function isActive(to: string): boolean {
   if (to === '/dashboard') {
     return route.path === '/dashboard' || route.path === '/dashboard/'
@@ -32,17 +27,10 @@ function isActive(to: string): boolean {
 <template>
   <div class="flex flex-col lg:flex-row gap-6 lg:gap-8">
     <!--
-      ============================================
-      Sidebar (desktop only) — warna aktif: emerald (standar brand)
-      ============================================
-      Daftar menu navigasi dashboard dengan NuxtLink ke route berbeda.
-      URL masing-masing sudah terpisah sehingga bisa di-bookmark:
-        - /dashboard         → Ringkasan
-        - /dashboard/events  → Kelola Event
-
-      Di mobile, drawer navigasi ada di layouts/default.vue dan
-      dipicu oleh hamburger tunggal di AppHeader — supaya user
-      tidak bingung mencari menu di dua tempat.
+      Desktop sidebar (lg+). Each page passes its own `items` so the same
+      component is shared by the dashboard root, events, and users pages.
+      On mobile the drawer in `layouts/default.vue` renders these items
+      instead, driven by the shared `NavItem` type.
     -->
     <nav class="hidden lg:flex w-64 shrink-0 flex-col gap-2 border-r border-slate-200 pr-6">
       <div
@@ -66,11 +54,6 @@ function isActive(to: string): boolean {
       </NuxtLink>
     </nav>
 
-    <!--
-      ============================================
-      Konten halaman (di-slot dari parent)
-      ============================================
-    -->
     <div class="flex-grow min-w-0 space-y-6">
       <slot />
     </div>

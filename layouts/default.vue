@@ -1,39 +1,62 @@
 <script setup lang="ts">
 import { useAppStore } from '~/presentation/stores/app'
 import { useMobileNav } from '~/presentation/composables/useMobileNav'
+import type { NavItem } from '~/types/navigation'
 
 const store = useAppStore()
 const route = useRoute()
 
-// Drawer mobile global (satu hamburger, satu drawer, satu state singleton).
-// Komposabel `useMobileNav` mengembalikan ref yang sama untuk semua komponen
-// yang mengimpornya. Header memicu toggle, layout ini yang merender drawer.
+// Single hamburger + single drawer for every page (public and dashboard).
+// State is shared via the `useMobileNav` singleton composable.
 const mobileNav = useMobileNav()
+
 const isHome = computed(() => route.path === '/')
 const isDashboard = computed(() => route.path.startsWith('/dashboard'))
+const isLoggedIn = computed(() => store.isAdminLoggedIn)
+
+// Mirrors the active-state logic used by DashboardShell so the drawer
+// and the desktop sidebar always highlight the same item.
+function isActive(to: string): boolean {
+  if (to === '/') return route.path === '/'
+  if (to === '/dashboard') {
+    return route.path === '/dashboard' || route.path === '/dashboard/'
+  }
+  return route.path === to || route.path.startsWith(`${to}/`)
+}
+
+// Public-facing menu (hidden while already on the home page).
+const PUBLIC_ITEMS: NavItem[] = [
+  { key: 'home', label: 'Halaman Utama', icon: 'fa-solid fa-house', to: '/' },
+]
+
+// Dashboard sub-menu, kept in sync with the desktop sidebar.
+const DASHBOARD_ITEMS: NavItem[] = [
+  { key: 'ringkasan', label: 'Ringkasan Dashboard', icon: 'fa-solid fa-chart-line', to: '/dashboard' },
+  { key: 'manage',    label: 'Kelola Event',        icon: 'fa-solid fa-list-check', to: '/dashboard/events' },
+  { key: 'users',     label: 'Master User',         icon: 'fa-solid fa-users',      to: '/dashboard/users' },
+]
 
 function goTo(target: string): void {
   mobileNav.close()
   navigateTo(target)
 }
+
 async function handleLogout(): Promise<void> {
   mobileNav.close()
   await store.adminLogout()
   navigateTo('/admin/login')
 }
 
-// Tutup drawer otomatis saat route berubah
+// Auto-close the drawer whenever the route changes.
 const routeKey = computed(() => route.fullPath)
 watch(routeKey, () => {
   mobileNav.close()
 })
 
 onMounted(async () => {
-  // Ambil data event publik dari Supabase (bukan dari hardcode/localStorage)
   if (store.events.length === 0) {
     await store.fetchEvents()
   }
-  // Hydrate auth state di client (server sudah ditangani middleware)
   if (store.authUser === null) {
     await store.initAuth()
   }
@@ -53,15 +76,12 @@ onMounted(async () => {
     <LayoutAppFooter />
 
     <!--
-      ============================================
-      Drawer navigasi mobile (SATU untuk semua halaman).
-      Dipicu oleh hamburger di AppHeader (lewat useMobileNav()).
-      Kontennya gabungan: navigasi publik + (jika ada) sub-menu dashboard.
-      Auto-close saat: backdrop di-tap, item dipilih, route berubah,
-      tombol close ditekan.
-      Di desktop (`lg:` ke atas) drawer ini tidak pernah muncul.
-      Warna aktif: emerald-600 (standar brand, sama dengan desktop sidebar).
-      ============================================
+      Global mobile drawer (one for every page).
+      Triggered by the hamburger in AppHeader via `useMobileNav()`.
+      Contents: public menu + (when on /dashboard) dashboard sub-menu + auth.
+      Auto-closes on backdrop tap, item click, or route change.
+      Hidden on `lg:` and up — the desktop sidebar handles that breakpoint.
+      Active style mirrors the desktop sidebar: emerald-600 background + white text.
     -->
     <Teleport to="body">
       <Transition
@@ -94,6 +114,7 @@ onMounted(async () => {
           aria-modal="true"
           aria-label="Navigasi"
         >
+          <!-- Drawer header -->
           <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
             <div class="flex items-center gap-2">
               <div class="bg-emerald-600 text-white p-1.5 rounded-lg shrink-0">
@@ -113,103 +134,86 @@ onMounted(async () => {
             </button>
           </div>
 
-          <nav class="flex-grow p-4 space-y-1.5 overflow-y-auto">
-            <!-- ============ Halaman Publik ============ -->
-            <div class="flex items-center gap-2 px-4 pt-1 pb-1.5">
-              <span class="w-1.5 h-3.5 rounded-full bg-emerald-500" />
-              <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
+          <nav class="flex-grow p-3 overflow-y-auto">
+            <!-- ============ Group: Halaman Publik ============ -->
+            <!-- Hidden when already on the home page (no point showing a button that goes to where you already are). -->
+            <div v-if="!isHome" class="space-y-1">
+              <div class="px-3 pt-2 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                 Halaman
               </div>
+              <button
+                v-for="item in PUBLIC_ITEMS"
+                :key="item.key"
+                type="button"
+                class="w-full px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5 text-left"
+                :class="isActive(item.to)
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-100'
+                  : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-700'"
+                @click="goTo(item.to)"
+              >
+                <i :class="item.icon" class="w-4 text-center" />
+                {{ item.label }}
+              </button>
             </div>
-            <button
-              v-if="!isHome"
-              class="w-full px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5 text-left hover:bg-emerald-50 text-slate-600 hover:text-emerald-700"
-              @click="goTo('/')"
-            >
-              <i class="fa-solid fa-house w-4 text-center" />
-              Halaman Utama
-            </button>
 
-            <!-- ============ Sub-menu Dashboard (hanya di /dashboard*) ============ -->
-            <template v-if="isDashboard">
-              <div class="flex items-center gap-2 px-4 pt-3 pb-1.5">
-                <span class="w-1.5 h-3.5 rounded-full bg-emerald-500" />
-                <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
+            <!-- ============ Group: Panel Operasional ============ -->
+            <!-- Always visible for logged-in admins so the drawer is a true global navigator. -->
+            <ClientOnly>
+              <div v-if="isLoggedIn" class="mt-2 space-y-1">
+                <div class="px-3 pt-2 pb-1.5 text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
                   Panel Operasional
                 </div>
+                <NuxtLink
+                  v-for="item in DASHBOARD_ITEMS"
+                  :key="item.key"
+                  :to="item.to"
+                  class="block px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5"
+                  :class="isActive(item.to)
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-100'
+                    : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-700'"
+                  @click="mobileNav.close()"
+                >
+                  <i :class="item.icon" class="w-4 text-center" />
+                  {{ item.label }}
+                </NuxtLink>
               </div>
-              <NuxtLink
-                to="/dashboard"
-                class="block px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5"
-                :class="route.path === '/dashboard' || route.path === '/dashboard/'
-                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-100'
-                  : 'hover:bg-emerald-50 text-slate-600 hover:text-emerald-700'"
-                @click="mobileNav.close()"
-              >
-                <i class="fa-solid fa-chart-line w-4 text-center" />
-                Ringkasan Dashboard
-              </NuxtLink>
-              <NuxtLink
-                to="/dashboard/events"
-                class="block px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5"
-                :class="route.path.startsWith('/dashboard/events')
-                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-100'
-                  : 'hover:bg-emerald-50 text-slate-600 hover:text-emerald-700'"
-                @click="mobileNav.close()"
-              >
-                <i class="fa-solid fa-list-check w-4 text-center" />
-                Kelola Event
-              </NuxtLink>
-              <NuxtLink
-                to="/dashboard/users"
-                class="block px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5"
-                :class="route.path.startsWith('/dashboard/users')
-                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-100'
-                  : 'hover:bg-emerald-50 text-slate-600 hover:text-emerald-700'"
-                @click="mobileNav.close()"
-              >
-                <i class="fa-solid fa-users w-4 text-center" />
-                Master User
-              </NuxtLink>
-            </template>
+            </ClientOnly>
 
-            <!-- ============ Auth ============ -->
-            <ClientOnly>
-              <template v-if="store.isAdminLoggedIn">
-                <NuxtLink to="/dashboard" class="flex items-center gap-2 px-4 pt-3 pb-1.5">
-                  <span class="w-1.5 h-3.5 rounded-full bg-emerald-500" />
-                  <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
+            <!-- ============ Group: Akun ============ -->
+            <div class="mt-2 pt-3 border-t border-slate-100 space-y-1">
+              <ClientOnly>
+                <template v-if="isLoggedIn">
+                  <div class="px-3 pt-1 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     Akun Admin
                   </div>
-                </NuxtLink>
-                <div class="px-4 py-2 bg-slate-900 text-emerald-400 rounded-xl text-xs font-bold truncate flex items-center gap-2">
-                  <i class="fa-solid fa-circle-user" />
-                  <span class="truncate">{{ store.authUser?.email }}</span>
-                </div>
-                <button
-                  class="w-full mt-1.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5 text-left text-rose-600 hover:bg-rose-50"
-                  @click="handleLogout"
-                >
-                  <i class="fa-solid fa-arrow-right-from-bracket w-4 text-center" />
-                  Logout
-                </button>
-              </template>
-              <template v-else>
-                <div class="flex items-center gap-2 px-4 pt-3 pb-1.5">
-                  <span class="w-1.5 h-3.5 rounded-full bg-emerald-500" />
-                  <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
+                  <div class="flex items-center gap-2 min-w-0 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-sm shadow-emerald-100">
+                    <i class="fa-solid fa-shield-halved shrink-0" />
+                    <span class="truncate min-w-0 flex-1">{{ store.authUser?.email }}</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="w-full mt-1 px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5 text-left text-rose-600 hover:bg-rose-50"
+                    @click="handleLogout"
+                  >
+                    <i class="fa-solid fa-arrow-right-from-bracket w-4 text-center" />
+                    Logout
+                  </button>
+                </template>
+                <template v-else>
+                  <div class="px-3 pt-1 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     Akun
                   </div>
-                </div>
-                <button
-                  class="w-full px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5 text-left hover:bg-emerald-50 text-slate-600 hover:text-emerald-700"
-                  @click="goTo('/admin/login')"
-                >
-                  <i class="fa-solid fa-lock w-4 text-center" />
-                  Login Admin
-                </button>
-              </template>
-            </ClientOnly>
+                  <button
+                    type="button"
+                    class="w-full px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5 text-left text-slate-600 hover:bg-emerald-50 hover:text-emerald-700"
+                    @click="goTo('/admin/login')"
+                  >
+                    <i class="fa-solid fa-lock w-4 text-center" />
+                    Login Admin
+                  </button>
+                </template>
+              </ClientOnly>
+            </div>
           </nav>
 
           <div class="border-t border-slate-200 px-5 py-3 text-[10px] text-slate-400 font-semibold uppercase tracking-widest">
