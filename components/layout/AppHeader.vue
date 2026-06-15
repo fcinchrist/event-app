@@ -7,12 +7,12 @@ const route = useRoute()
 
 const isHome = computed(() => route.path === '/')
 
-// Catatan: initAuth sudah dipanggil di app.vue (root) agar sinkron
-// di SSR + client. Tidak perlu dipanggil lagi di sini.
+// Note: `initAuth` is already called in app.vue (root) so it stays in
+// sync across SSR + client. There is no need to call it again here.
 
-// Hamburger memicu drawer global (satu hamburger, satu drawer untuk
-// semua halaman: publik maupun dashboard). State dikelola oleh composable
-// `useMobileNav` sehingga sinkron antar layout & DashboardShell.
+// The hamburger triggers a global drawer (one hamburger, one drawer for
+// every page: public, dashboard, admin). State is owned by the
+// `useMobileNav` composable so layouts and DashboardShell stay in sync.
 import { useMobileNav } from '~/presentation/composables/useMobileNav'
 const mobileNav = useMobileNav()
 function toggleMobileNav(): void {
@@ -34,27 +34,27 @@ function handleLogout(): Promise<void> {
 <template>
   <!--
     ============================================
-    AppHeader — Navbar (background putih)
+    AppHeader — Navbar (white background)
     ============================================
-    Background tetap putih. Yang di-tweak:
-    - Tombol "Admin Login" / "Dashboard" / "Halaman Utama" — emerald primary
-    - Email chip admin — emerald primary (sama dengan tombol di sebelahnya)
-    - Tombol "Logout" — full red (rose) dengan shadow
+    Background stays white. What is tweaked:
+    - "Admin Login" / "Dashboard" / "Home" buttons — emerald primary
+    - Admin email chip — emerald primary (matches the buttons next to it)
+    - "Logout" button — solid red (rose) with a shadow
 
-    Karena initAuth sudah jalan di SSR (lihat app.vue), authUser sudah
-    tersedia di server dan di-hydrate langsung ke client — tidak ada
-    ClientOnly wrap, tidak ada jumping/flash saat refresh.
+    Because `initAuth` already runs during SSR (see app.vue), `authUser`
+    is populated on the server and hydrated directly into the client —
+    no ClientOnly wrapper, no jumping/flash on refresh.
   -->
   <header class="bg-white border-b border-slate-200 sticky top-0 z-50 px-4 py-3">
     <div class="max-w-7xl mx-auto flex justify-between items-center gap-3">
       <!--
-        Kiri: hamburger (mobile) + brand.
+        Left: hamburger (mobile) + brand.
       -->
       <div class="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
           type="button"
           class="lg:hidden -ml-1 p-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-emerald-600 transition-colors shrink-0"
-          aria-label="Buka Menu Navigasi"
+          aria-label="Open navigation menu"
           @click="toggleMobileNav"
         >
           <i class="fa-solid fa-bars text-lg" />
@@ -111,9 +111,9 @@ function handleLogout(): Promise<void> {
           </NuxtLink>
         </template>
 
-        <!-- Logged in: tampilkan email chip + logout -->
+        <!-- Logged in: show email chip + logout -->
         <template v-if="store.isAdminLoggedIn">
-          <!-- Email chip: emerald primary (match tombol brand) -->
+          <!-- Email chip: emerald primary (matches the brand buttons) -->
           <span class="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 max-w-[180px] truncate shadow-sm shadow-emerald-100">
             <i class="fa-solid fa-shield-halved" />
             <span class="truncate">{{ store.authUser?.email }}</span>

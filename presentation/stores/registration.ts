@@ -61,13 +61,13 @@ interface RegistrationState {
    */
   isCountLoadingByEvent: Record<string, boolean>
 
-  /** Submit-state form booking publik */
+  /** Submitting state for the public booking form */
   isSubmittingBooking: boolean
 
-  /** Auto-suggest state (lookup no HP di form publik) */
+  /** Auto-suggest state (phone lookup in the public form) */
   isLookingUpUser: boolean
 
-  /** Error terakhir (untuk Alert / Toast di UI) */
+  /** Last error (for Alert / Toast in the UI) */
   error: string | null
 }
 
@@ -95,9 +95,9 @@ export const useRegistrationStore = defineStore('registration', {
      */
     getSlotsTakenByEvent(): (eventId: string) => number {
       return (eventId: string) => {
-        // Sumber preferensi: `slotsTakenByEvent` (cache count, ringan).
-        // Fallback: derive dari `participantsByEvent` (untuk halaman detail
-        // yang sudah punya list peserta di memori).
+        // Preferred source: `slotsTakenByEvent` (lightweight count cache).
+        // Fallback: derive from `participantsByEvent` (for the event detail
+        // page, which already has the full list in memory).
         if (eventId in this.slotsTakenByEvent) {
           return this.slotsTakenByEvent[eventId]
         }
@@ -105,12 +105,12 @@ export const useRegistrationStore = defineStore('registration', {
         if (list) {
           return list.filter((r) => r.status !== 'Tidak Hadir').length
         }
-        // Belum ada data sama sekali — return 0 sebagai default supaya
-        // UI konsisten. Untuk membedakan "belum load" vs "0 peserta",
-        // pakai getter `isCountLoadingByEvent` di template (animasi
-        // spinner / skeleton). Tidak return null karena itu akan
-        // memaksa setiap konsumen menambahkan null-check & placeholder
-        // yang mudah lupa dipasang.
+        // No data at all yet — return 0 as the default so the UI stays
+        // consistent. To distinguish "not yet loaded" from "0 participants",
+        // use the `isCountLoadingByEvent` getter in the template (spinner /
+        // skeleton animation). We intentionally do NOT return `null`,
+        // because that would force every consumer to add a null-check and
+        // a placeholder that is easy to forget.
         return 0
       }
     },
@@ -164,9 +164,9 @@ export const useRegistrationStore = defineStore('registration', {
         const message =
           err instanceof Error ? err.message : 'Gagal memuat daftar peserta.'
         this.error = message
-        // Jangan replace cache yang ada dengan []. Kalau ada entry
-        // sebelumnya, biarkan. Kalau belum ada, seed dengan [] supaya
-        // getter konsisten (tidak undefined).
+        // Never replace the existing cache with []. If a previous entry
+        // exists, leave it. If not, seed with [] so the getter stays
+        // consistent (no `undefined`).
         if (!(eventId in this.participantsByEvent)) {
           this.participantsByEvent[eventId] = []
         }
@@ -200,8 +200,8 @@ export const useRegistrationStore = defineStore('registration', {
         const message =
           err instanceof Error ? err.message : 'Gagal memuat jumlah peserta.'
         this.error = message
-        // Jangan replace cache yang ada. Hanya seed dengan 0 kalau belum
-        // pernah ada entry (mis. pertama kali load & langsung gagal).
+        // Never replace the existing cache. Only seed with 0 if no entry
+        // has ever been recorded (e.g. first load fails immediately).
         if (!(eventId in this.slotsTakenByEvent)) {
           this.slotsTakenByEvent[eventId] = 0
         }
@@ -257,7 +257,8 @@ export const useRegistrationStore = defineStore('registration', {
         const eventRepo = new SupabaseEventRepository()
         const useCase = new BookEvent(userRepo, regRepo, eventRepo)
         await useCase.execute(input)
-        // Refresh cache peserta + count untuk event ini
+        // Refresh both the participants list and the count cache for
+        // this event.
         await Promise.all([
           this.fetchParticipants(input.eventId),
           this.fetchParticipantsCount(input.eventId),
@@ -304,7 +305,8 @@ export const useRegistrationStore = defineStore('registration', {
               : r,
           )
         }
-        // Sinkronkan count cache (slot di-release kalau status = "Tidak Hadir").
+        // Re-sync the count cache (a slot is released when the status is
+        // "Tidak Hadir").
         await this.fetchParticipantsCount(eventId)
         return null
       } catch (err: unknown) {

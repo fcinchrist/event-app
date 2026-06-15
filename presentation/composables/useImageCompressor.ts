@@ -1,21 +1,20 @@
 /**
- * Composable untuk mengompres gambar (JPEG/PNG/WebP) ke format WebP
- * dengan canvas HTML5, sebelum di-upload ke Supabase Storage.
+ * Composable that compresses images (JPEG/PNG/WebP) into WebP using an
+ * HTML5 canvas, before they are uploaded to Supabase Storage.
  *
- * Tujuan: Supabase free-tier memiliki batas storage 1 GB.
- * Mengompres di sisi client membantu menekan penggunaan storage
- * dan bandwidth secara signifikan.
+ * Why: the Supabase free tier has a 1 GB storage cap. Compressing on
+ * the client side significantly reduces storage and bandwidth usage.
  *
- * Catatan: composable ini TIDAK mengandung business logic –
- * hanya utilitas UI/presentation. Dipakai dari komponen form.
+ * Note: this composable does NOT contain business logic — it is a
+ * pure UI/presentation utility, consumed by form components.
  */
 
 export interface CompressOptions {
-  /** Kualitas WebP (0..1). Default 0.75 ≈ 75%. */
+  /** WebP quality (0..1). Default 0.75 ≈ 75%. */
   quality?: number
-  /** Lebar maksimum (px). Gambar akan di-resize proporsional. */
+  /** Maximum width in px. The image is resized proportionally. */
   maxWidth?: number
-  /** Tinggi maksimum (px). Default = maxWidth untuk konsistensi rasio. */
+  /** Maximum height in px. Defaults to `maxWidth` to keep aspect ratio. */
   maxHeight?: number
 }
 
@@ -48,7 +47,7 @@ function drawAndExport(img: HTMLImageElement, opts: Required<CompressOptions>): 
     const ratio = Math.min(
       opts.maxWidth / img.naturalWidth,
       opts.maxHeight / img.naturalHeight,
-      1, // jangan upscale gambar kecil
+      1, // never upscale small images
     )
     const width = Math.round(img.naturalWidth * ratio)
     const height = Math.round(img.naturalHeight * ratio)

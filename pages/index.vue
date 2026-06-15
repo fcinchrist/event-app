@@ -11,23 +11,25 @@ const regStore = useRegistrationStore()
 
 const SKELETON_COUNT = 6
 
-// Pre-fetch jumlah peserta per event untuk counter "X/Y Terisi" di EventCard.
+// Pre-fetch the participant count per event for the "X/Y Terisi" badge
+// in the EventCard.
 //
-// Sebelumnya halaman ini memanggil `fetchParticipants` (query berat
-// dengan JOIN `user:event_users(*)`) hanya untuk menghitung jumlah
-// — itu boros bandwidth, dan kalau satu baris punya user null,
-// mapper lama melempar error yang di-catch dengan reset cache ke [],
-// sehingga counter "tiba-tiba jadi 0" setiap refresh.
+// Previously this page called `fetchParticipants` (a heavy query with
+// the `user:event_users(*)` JOIN) just to count rows. That wasted
+// bandwidth, and if a single row had a null user the old mapper threw
+// an error that was caught and reset the cache to [], so the counter
+// "suddenly dropped to 0" on every refresh.
 //
-// Sekarang pakai `fetchParticipantsCount` (SELECT count(*) saja, tanpa
-// JOIN) — ringan, tidak gagal pada orphaned rows, dan aman terhadap
-// error (cache yang sudah ada tidak dihapus saat request gagal).
+// Now we use `fetchParticipantsCount` (a `SELECT count(*)` only, no
+// JOIN) — lightweight, doesn't fail on orphaned rows, and error-safe
+// (the existing cache is never wiped when a request fails).
 //
-// Penting: pakai `watch` (bukan `onMounted` saja) karena `store.events`
-// bisa masih kosong saat home page mount — layout `default.vue` yang
-// trigger `store.fetchEvents()` berjalan paralel. Tanpa watch, kalau
-// `store.events` masih [], `Promise.all([])` selesai instan tanpa
-// fetch apa-apa dan counter stuck di placeholder "—/N" selamanya.
+// Important: we use `watch` (not just `onMounted`) because `store.events`
+// may still be empty when the home page mounts — the `default.vue`
+// layout that triggers `store.fetchEvents()` runs in parallel. Without
+// the watch, if `store.events` is still `[]`, `Promise.all([])` finishes
+// instantly without fetching anything and the counter stays stuck on
+// the "—/N" placeholder forever.
 const fetchedEventIds = new Set<string>()
 async function syncEventCounts(): Promise<void> {
   const pending = store.events

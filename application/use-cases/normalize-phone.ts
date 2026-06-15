@@ -1,24 +1,24 @@
 /**
- * Normalisasi nomor HP ke format konsisten '08123456789':
- * - Buang semua non-digit (spasi, dash, parentheses, '+')
- * - Kalau mulai dengan '62' (kode negara Indonesia), ganti ke '0'
- * - Validasi: panjang hasil harus 10-15 digit
+ * Normalize a phone number into the consistent format '08123456789':
+ * - Strip every non-digit character (spaces, dashes, parentheses, '+')
+ * - If it starts with '62' (Indonesia country code), rewrite it to '0'
+ * - Validation: the resulting length must be 10–15 digits
  *
- * Return null kalau input tidak valid (bukan string kosong, atau
- * panjang hasil di luar range).
+ * Returns `null` when the input is invalid (empty string or a result
+ * whose length falls outside the allowed range).
  */
 export function normalizePhone(input: string): string | null {
   if (!input) return null
 
-  // Buang semua non-digit
+  // Strip every non-digit character
   let digits = input.replace(/\D/g, '')
 
-  // Konversi prefix '62' (kode negara) ke '0'
+  // Convert the '62' (country code) prefix to '0'
   if (digits.startsWith('62') && digits.length > 2) {
     digits = '0' + digits.slice(2)
   }
 
-  // Validasi panjang
+  // Validate the length
   if (digits.length < 10 || digits.length > 15) {
     return null
   }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useAppStore } from '~/presentation/stores/app'
 import { useRegistrationStore } from '~/presentation/stores/registration'
+import { resolveEventImage } from '~/utils/event-image'
 
 definePageMeta({
   layout: 'default',
@@ -10,23 +11,32 @@ const route = useRoute()
 const store = useAppStore()
 const regStore = useRegistrationStore()
 
-// Loading state lokal halaman detail. True sampai event berhasil di-set
-// (untuk kasus deep-link / refresh) atau sampai store selesai fetch.
+// Local loading state for the detail page. `true` until the event has
+// been set (handles deep-link / refresh) or the store fetch completes.
 const isLoadingDetail = ref(true)
+const imageErrored = ref(false)
+
+// Resolve the cover URL via the helper so events without a cover
+// automatically get the fallback from
+// `NUXT_PUBLIC_DEFAULT_EVENT_IMAGE`.
+const coverSrc = computed(() => resolveEventImage(store.selectedEvent?.image))
+const showCover = computed(() => coverSrc.value.length > 0 && !imageErrored.value)
 
 const eventId = computed(() => String(route.params.id))
 
 async function ensureEventLoaded(id: string): Promise<void> {
   isLoadingDetail.value = true
   try {
-    // Untuk deep-link / refresh: kalau list event belum ada (atau event yang
-    // diminta tidak ketemu di cache), fetch dulu dari Supabase. Tanpa ini
-    // halaman menampilkan "Event Tidak Ditemukan" walau sebenarnya ada.
+    // For deep-link / refresh: if the event list isn't loaded yet (or
+    // the requested event is not in the cache), fetch from Supabase
+    // first. Without this, the page would show "Event Tidak Ditemukan"
+    // even when the event actually exists.
     if (store.events.length === 0) {
       await store.fetchEvents()
     }
     store.setSelectedEventById(id)
-    // Pre-fetch peserta untuk event ini agar list & counter quota update.
+    // Pre-fetch participants for this event so the list and the quota
+    // counter stay in sync.
     if (id) {
       void regStore.fetchParticipants(id)
     }
@@ -42,10 +52,20 @@ onMounted(() => {
 watch(eventId, (newId) => {
   void ensureEventLoaded(newId)
 })
+
+// Reset the error state every time the event changes — otherwise an
+// error from the previous event would trigger the placeholder for the
+// new event, even though it actually has a valid image.
+watch(
+  () => store.selectedEvent?.id,
+  () => {
+    imageErrored.value = false
+  },
+)
 </script>
 
 <template>
-  <!-- Loading skeleton: tampil saat pertama load / refresh / deep-link -->
+  <!-- Loading skeleton: shown on first load, refresh, and deep-link -->
   <EventDetailSkeleton v-if="isLoadingDetail" />
 
   <div v-else class="space-y-8">
@@ -87,11 +107,16 @@ watch(eventId, (newId) => {
           <div class="h-64 sm:h-80 bg-slate-100 relative overflow-hidden">
             <div class="absolute inset-0 animate-pulse bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100" />
             <img
-              :src="store.selectedEvent.image"
+              v-if="showCover"
+              :src="coverSrc"
               alt="Cover"
               class="w-full h-full object-cover relative z-10"
               @load="($event.target as HTMLImageElement).previousElementSibling?.classList.add('hidden')"
+              @error="imageErrored = true"
             >
+            <div v-else class="absolute inset-0 z-10 flex items-center justify-center text-slate-300">
+              <i class="fa-regular fa-image text-6xl" />
+            </div>
             <div class="absolute top-4 left-4 z-20 bg-slate-900/90 backdrop-blur-sm px-3 py-1 rounded-xl text-xs font-bold text-white">
               {{ store.getEventStatusBadge(store.selectedEvent.date) }}
             </div>

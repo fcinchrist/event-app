@@ -2,6 +2,7 @@
 import { useDashboardStore } from '~/presentation/stores/dashboard'
 import { useAppStore } from '~/presentation/stores/app'
 import { useRegistrationStore } from '~/presentation/stores/registration'
+import { resolveEventImage } from '~/utils/event-image'
 import type { Event } from '~/domain/entities/event'
 import type { EventStatusValue } from '~/types/common'
 
@@ -23,14 +24,14 @@ const editingEvent = ref<Event | null>(null)
 const searchQuery = ref('')
 const imageLoadMap = ref<Record<string, boolean>>({})
 
-// Daftar menu navigasi dashboard. URL masing-masing sudah terpisah.
+// Dashboard navigation menu. Each URL is independent.
 const NAV_ITEMS = [
   { key: 'ringkasan', label: 'Ringkasan Dashboard', icon: 'fa-solid fa-chart-line', to: '/dashboard' },
   { key: 'manage', label: 'Kelola Event', icon: 'fa-solid fa-list-check', to: '/dashboard/events' },
   { key: 'users', label: 'Master User', icon: 'fa-solid fa-users', to: '/dashboard/users' },
 ]
 
-// Filter tab di atas tabel
+// Status filter tabs above the table
 type StatusFilter = 'all' | EventStatusValue
 const statusFilter = ref<StatusFilter>('all')
 
@@ -79,13 +80,14 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
 }
 
-// List yang ditampilkan (filter lokal, server tetap paginasi global)
+// List shown in the table (client-side filter; the server still applies
+// its own pagination).
 const filteredEvents = computed<Event[]>(() => {
   if (statusFilter.value === 'all') return store.events
   return store.events.filter((e) => e.status === statusFilter.value)
 })
 
-// Counter untuk tab
+// Counter for the status tabs
 const countByStatus = computed<Record<StatusFilter, number>>(() => {
   const base: Record<StatusFilter, number> = {
     all: store.events.length,
@@ -151,7 +153,7 @@ function openParticipants(event: Event): void {
 }
 
 function onUpdated(): void {
-  // store sudah update state.events secara reaktif
+  // The store has already updated `state.events` reactively.
 }
 
 function openAdd(): void {
@@ -160,7 +162,7 @@ function openAdd(): void {
 
 function onCreated(): void {
   store.fetchEvents()
-  // Refresh participants count untuk semua event
+  // Refresh participants count for every event
   Promise.all(
     store.events.map((e) => regStore.fetchParticipants(e.id)),
   )
@@ -171,7 +173,7 @@ onMounted(async () => {
     await appStore.initAuth()
   }
   await store.fetchEvents()
-  // Pre-fetch participants count untuk badge tombol "Lihat Peserta"
+  // Pre-fetch participants count for the "Lihat Peserta" button badge
   await Promise.all(
     store.events.map((e) => regStore.fetchParticipants(e.id)),
   )
@@ -261,7 +263,7 @@ onMounted(async () => {
         </UiAppButton>
       </div>
 
-      <!-- ============ Empty karena filter ============ -->
+      <!-- ============ Empty because of filter ============ -->
       <div
         v-else-if="filteredEvents.length === 0"
         class="bg-white border border-slate-200 rounded-2xl p-10 text-center shadow-sm"
@@ -300,12 +302,12 @@ onMounted(async () => {
               <div class="col-span-4 flex items-center gap-3 min-w-0">
                 <div class="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 shrink-0 relative border border-slate-200">
                   <div
-                    v-if="!imageLoadMap[event.id] && event.image"
+                    v-if="!imageLoadMap[event.id] && resolveEventImage(event.image)"
                     class="absolute inset-0 animate-pulse bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100"
                   />
                   <img
-                    v-if="event.image"
-                    :src="event.image"
+                    v-if="resolveEventImage(event.image)"
+                    :src="resolveEventImage(event.image)"
                     :alt="event.title"
                     class="w-full h-full object-cover"
                     :class="imageLoadMap[event.id] ? 'opacity-100' : 'opacity-0'"
@@ -417,12 +419,12 @@ onMounted(async () => {
             <div class="md:hidden flex gap-3">
               <div class="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 shrink-0 relative border border-slate-200">
                 <div
-                  v-if="!imageLoadMap[event.id] && event.image"
+                  v-if="!imageLoadMap[event.id] && resolveEventImage(event.image)"
                   class="absolute inset-0 animate-pulse bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100"
                 />
                 <img
-                  v-if="event.image"
-                  :src="event.image"
+                  v-if="resolveEventImage(event.image)"
+                  :src="resolveEventImage(event.image)"
                   :alt="event.title"
                   class="w-full h-full object-cover"
                   :class="imageLoadMap[event.id] ? 'opacity-100' : 'opacity-0'"

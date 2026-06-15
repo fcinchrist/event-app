@@ -6,9 +6,10 @@ import { useSupabaseClient } from '~/infrastructure/supabase/client'
 import { mapEventRow } from '~/infrastructure/mappers/event-mapper'
 
 const EVENTS_BUCKET = 'event-images'
-// Cap server-side range query. Dinaikkan dari 20 ke 100 supaya UI publik
-// (perPage=9) punya cukup data untuk multi-page pagination dalam satu
-// kali fetchEvents(). Tetap dibatasi untuk melindungi dari request besar.
+// Cap for the server-side range query. Bumped from 20 to 100 so the
+// public UI (perPage=9) has enough rows to back multi-page pagination
+// in a single `fetchEvents()` call. Still capped to protect against
+// very large requests.
 const MAX_BUCKET_LIMIT = 100
 
 export class SupabaseEventRepository implements EventRepository {
@@ -109,7 +110,8 @@ export class SupabaseEventRepository implements EventRepository {
       : payload.quota
     const newImage: string = payload.image ?? ''
 
-    // Ambil gambar lama dulu agar jika diganti kita bisa bersihkan storage.
+    // Fetch the previous image first so we can clean up storage when it's
+    // replaced by a new upload.
     const { data: oldRow } = await supabase
       .from('events')
       .select('image')
@@ -138,15 +140,15 @@ export class SupabaseEventRepository implements EventRepository {
       throw new Error(error.message)
     }
 
-    // Hapus foto lama dari storage HANYA jika:
-    // - ada foto lama,
-    // - berbeda dari foto baru,
-    // - dan merupakan URL Supabase Storage kita.
+    // Delete the old photo from storage ONLY when:
+    // - there is an old photo,
+    // - it differs from the new one,
+    // - and it points to our own Supabase Storage bucket.
     if (oldImage && oldImage !== newImage) {
       try {
         await this.deleteImage(oldImage)
       } catch (storageErr: unknown) {
-        console.warn('[update-event] Gagal menghapus foto lama:', storageErr)
+        console.warn('[update-event] Failed to delete old image:', storageErr)
       }
     }
 
@@ -156,8 +158,8 @@ export class SupabaseEventRepository implements EventRepository {
   async delete(id: string): Promise<void> {
     const supabase = useSupabaseClient()
 
-    // 1. Ambil row event terlebih dahulu untuk mengetahui URL gambar
-    //    yang harus dihapus dari Storage.
+    // 1. Fetch the event row first to learn the image URL that needs
+    //    to be removed from Storage.
     const { data: row, error: fetchError } = await supabase
       .from('events')
       .select('image')
@@ -172,20 +174,20 @@ export class SupabaseEventRepository implements EventRepository {
       ? String((row as { image: unknown }).image ?? '')
       : ''
 
-    // 2. Hapus file gambar dari Storage (kalau ada & milik bucket kita).
-    //    Kegagalan di sini TIDAK membatalkan penghapusan row, karena
-    //   比起 storage orphan, integritas data row lebih diprioritaskan.
+    // 2. Delete the image file from Storage (if any and owned by our bucket).
+    //    A failure here does NOT abort the row deletion, because the row's
+    //    data integrity is more important than a possible storage orphan.
     if (imageUrl) {
       try {
         await this.deleteImage(imageUrl)
       } catch (storageErr: unknown) {
-        // Log saja, lanjut hapus row. Foto orphan bisa dibersihkan manual
-        // lewat dashboard Supabase Storage.
-        console.warn('[delete-event] Gagal menghapus foto, lanjut hapus row:', storageErr)
+        // Log and continue with the row delete. Orphan photos can be cleaned
+        // up manually from the Supabase Storage dashboard.
+        console.warn('[delete-event] Failed to delete image, continuing with row delete:', storageErr)
       }
     }
 
-    // 3. Hapus row event dari database.
+    // 3. Delete the event row from the database.
     const { error } = await supabase
       .from('events')
       .delete()
@@ -197,21 +199,21 @@ export class SupabaseEventRepository implements EventRepository {
   }
 
   /**
-   * Menghapus sebuah file di bucket `event-images` berdasarkan public URL.
+   * Removes a file from the `event-images` bucket given its public URL.
    *
-   * - URL kosong / URL external (bukan Supabase) → no-op (return false).
-   * - Berhasil → return true.
+   * - Empty / external (non-Supabase) URL → no-op (returns false).
+   * - Successful deletion → returns true.
    *
-   * Catatan: URL public Supabase Storage berbentuk:
+   * Note: a Supabase Storage public URL has the shape:
    *   https://<project>.supabase.co/storage/v1/object/public/<bucket>/<path>
-   * Path yang dipakai untuk `remove()` adalah `<path>` (relatif terhadap bucket).
+   * The path passed to `remove()` is `<path>` (relative to the bucket).
    */
   async deleteImage(publicUrl: string): Promise<boolean> {
     if (!publicUrl) return false
 
     const supabase = useSupabaseClient()
 
-    // Decode dulu untuk handle URL yang mengandung karakter khusus.
+    // Decode the URL first to handle special characters safely.
     let url: URL
     try {
       url = new URL(publicUrl)
@@ -219,12 +221,12 @@ export class SupabaseEventRepository implements EventRepository {
       return false
     }
 
-    // Cari segment "/storage/v1/object/public/<bucket>/" di pathname
-    // dan ambil path setelahnya.
+    // Find the "/storage/v1/object/public/<bucket>/" segment in the
+    // pathname and grab the file path that follows it.
     const marker = '/storage/v1/object/public/'
     const idx = url.pathname.indexOf(marker)
     if (idx === -1) {
-      // Bukan URL Supabase Storage (mis. Unsplash). Jangan dihapus.
+      // Not a Supabase Storage URL (e.g. Unsplash). Leave it alone.
       return false
     }
 
@@ -250,7 +252,7 @@ export class SupabaseEventRepository implements EventRepository {
   async uploadImage(file: File): Promise<string> {
     const supabase = useSupabaseClient()
 
-    // Bangun nama file unik: <timestamp>-<random>.<ext>
+    // Build a unique file name: <timestamp>-<random>.<ext>
     const ext = file.name.split('.').pop()?.toLowerCase() || 'webp'
     const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
     const filePath = `events/${fileName}`

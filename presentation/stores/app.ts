@@ -43,14 +43,16 @@ export const useAppStore = defineStore('app', {
     selectedEvent: null,
     filterPeriode: 'all',
     filterTanggal: '',
+    // Current page on the public UI. Pagination is server-side: see
+    // `fetchEvents` → `repo.range()`, so each next/prev click triggers
+    // a fresh request.
     page: 1,
-    // Jumlah event per halaman di UI publik. Pagination di sini server-side
-    // (lihat fetchEvents → repo.range()), sehingga tiap klik next/prev
-    // mengambil slice berikutnya dari Supabase.
+    // Per-page size of the public UI. Server-side paginated.
     perPage: 9,
     events: [],
-    // Bookings kosong: belum ada tabel event_registrations di Supabase.
-    // Kalau nanti ditambah, ganti `fetchBookings()` (pola yang sama dengan events).
+    // Bookings start empty: there is no `event_registrations` table in
+    // Supabase yet. When that table is added, swap `fetchBookings()` for
+    // the real implementation (same pattern as events).
     bookings: [],
     bookingForm: { name: '', wa: '' },
     attendanceFormBookingId: '',
@@ -120,12 +122,13 @@ export const useAppStore = defineStore('app', {
       try {
         const repo = new SupabaseEventRepository()
         const useCase = new GetEvents(repo)
-        // Ambil window besar dari Supabase (server-side range) supaya
-        // pagination 9/halaman di UI bisa menjangkau banyak event.
-        // Filter (Semua / Akan Datang / Hari H / Selesai / custom date)
-        // tetap di client (lihat `filteredEvents` getter) untuk UX cepat
-        // tanpa round-trip. Backend saat ini hanya support `search`.
-        // Catatan: cap use case = 20. Naikkan jika list event tumbuh.
+        // Fetch a large window from Supabase (server-side range) so the
+        // public UI's 9-per-page pagination can reach many events. The
+        // period filter (All / Upcoming / Today / Past / custom date) is
+        // applied client-side (see the `filteredEvents` getter) for
+        // instant UX without a round-trip. The backend currently only
+        // supports `search`. Note: the use case cap is 20 — raise it
+        // when the event list grows.
         const result = await useCase.execute({ page: 1, limit: 100 })
         this.events = result.data
       } catch (err: unknown) {
@@ -214,11 +217,11 @@ export const useAppStore = defineStore('app', {
     },
 
     deleteEvent(_eventId: string): void {
-      // Delegated ke dashboard store yang memakai Supabase.
+      // Delegated to the dashboard store, which talks to Supabase.
     },
 
     cancelBooking(_bookingId: string): void {
-      // No-op: bookings belum persistensi DB.
+      // No-op: bookings aren't persisted in the DB yet.
     },
 
     setFilter(periode: FilterPeriode): void {

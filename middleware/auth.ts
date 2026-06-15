@@ -14,7 +14,7 @@ import { useAppStore } from '~/presentation/stores/app'
 export default defineNuxtRouteMiddleware(async (to) => {
   const store = useAppStore()
 
-  // Pastikan state auth user sudah ter-hydrate
+  // Make sure the auth user state has been hydrated.
   if (store.authUser === null) {
     await store.initAuth()
   }

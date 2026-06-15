@@ -3,11 +3,12 @@ import { useAppStore } from '~/presentation/stores/app'
 
 const store = useAppStore()
 
-// initAuth dipanggil di level root agar:
-// - Berjalan di SSR (cookie dibaca server, authUser terisi sebelum HTML dikirim)
-// - Berjalan di client hydration (state tetap sinkron)
-// Tujuan: hindari jumping/flash di header saat refresh — karena header
-// butuh authUser untuk render tombol Dashboard/Login/Logout.
+// initAuth is called at the root level so that:
+// - It runs in SSR (cookie is read on the server, authUser is populated
+//   before the HTML is sent).
+// - It also runs on client hydration (state stays in sync).
+// Goal: avoid jumping/flash in the header on refresh — the header needs
+// `authUser` to render the Dashboard/Login/Logout buttons.
 await useAsyncData('app:init-auth', async () => {
   if (store.authUser === null) {
     await store.initAuth()

@@ -11,18 +11,18 @@ export interface BookEventInput {
 }
 
 /**
- * Orkestrasi alur booking event publik:
- *   1. Normalisasi no HP
- *   2. Validasi event ada & tanggalnya belum lewat
- *   3. Cari user existing berdasarkan no HP
- *   4. Kalau belum ada → buat user baru (nama wajib dari input)
- *   5. Cek existing registration (userId, eventId)
- *   6. Kalau sudah ada → throw "Anda sudah terdaftar di event ini"
- *   7. Insert registrasi baru
+ * Orchestrates the public event booking flow:
+ *   1. Normalize the phone number
+ *   2. Validate the event exists and its date is not in the past
+ *   3. Look up an existing user by phone number
+ *   4. If none exists, create a new user (name is required from input)
+ *   5. Check for an existing registration (userId, eventId)
+ *   6. If one exists, throw "You are already registered for this event"
+ *   7. Insert a new registration
  *
- * Validasi tanggal event dilakukan di sini (bukan hanya di form)
- * supaya pengecekan tetap authoritative walau UI di-bypass (mis.
- * request manual via DevTools / integrasi pihak ketiga).
+ * Date validation is performed here (not only in the form) so the
+ * check remains authoritative even if the UI is bypassed (e.g.
+ * manual requests via DevTools or third-party integrations).
  */
 export class BookEvent {
   constructor(
@@ -40,9 +40,9 @@ export class BookEvent {
       throw new Error('Event tidak valid.')
     }
 
-    // 1. Validasi event: harus ada, status Aktif, dan tanggal belum lewat.
-    //    Bandingkan pada level "hari" (YYYY-MM-DD) supaya event yang
-    //    berlangsung di hari ini masih bisa di-book sampai jam mulai.
+    // 1. Validate the event: it must exist, be active, and not in the past.
+    //    Compare at the day level (YYYY-MM-DD) so that an event running
+    //    today can still be booked up until its start time.
     const event = await this.eventRepository.getById(input.eventId)
     if (!event) {
       throw new Error('Event tidak ditemukan.')
@@ -59,7 +59,7 @@ export class BookEvent {
       throw new Error('Maaf, event ini sudah lewat dan tidak bisa di-booking lagi.')
     }
 
-    // 2. Cari atau buat user
+    // 2. Look up the user, or create one if missing
     let user = await this.userRepository.findByPhone(noHp)
     if (!user) {
       if (!input.nama || input.nama.trim().length < 2) {
@@ -73,7 +73,7 @@ export class BookEvent {
       })
     }
 
-    // 3. Cek duplikat registration
+    // 3. Check for a duplicate registration
     const existing = await this.registrationRepository.findByUserAndEvent(
       user.id,
       input.eventId,
@@ -82,7 +82,7 @@ export class BookEvent {
       throw new Error('Nomor HP ini sudah terdaftar di event ini.')
     }
 
-    // 4. Insert
+    // 4. Insert the new registration
     return this.registrationRepository.create({
       userId: user.id,
       eventId: input.eventId,

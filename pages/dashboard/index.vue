@@ -17,8 +17,8 @@ const config = useRuntimeConfig()
 
 const showAddModal = ref(false)
 
-// Daftar menu navigasi dashboard. URL masing-masing sudah terpisah
-// sehingga bisa di-bookmark & di-share langsung.
+// Dashboard navigation menu. Each URL is independent so they can be
+// bookmarked and shared directly.
 const NAV_ITEMS = [
   { key: 'ringkasan', label: 'Ringkasan Dashboard', icon: 'fa-solid fa-chart-line', to: '/dashboard' },
   { key: 'manage', label: 'Kelola Event', icon: 'fa-solid fa-list-check', to: '/dashboard/events' },
@@ -96,7 +96,7 @@ onMounted(async () => {
     await appStore.initAuth()
   }
   await store.fetchEvents()
-  // Fetch participants per-event untuk KPI & recent activity
+  // Fetch participants per event for KPIs and recent activity
   await Promise.all(
     store.events.map((e) => regStore.fetchParticipants(e.id)),
   )
@@ -121,7 +121,7 @@ onMounted(async () => {
         </UiAppButton>
       </header>
 
-      <!-- KPI: 4 kartu emerald, atau skeleton saat loading -->
+      <!-- KPI: 4 emerald cards, or skeleton while loading -->
       <DashboardKpiSkeleton v-if="store.isLoading" />
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <DashboardStatCard
@@ -158,7 +158,7 @@ onMounted(async () => {
         />
       </div>
 
-      <!-- Charts Row: skeleton untuk donut + occupancy saat loading -->
+      <!-- Charts Row: skeleton for donut + occupancy while loading -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <DashboardDonutChart
           v-if="store.isLoading"
@@ -173,7 +173,7 @@ onMounted(async () => {
           :absent-count="kpi.absentCount"
         />
 
-        <!-- Occupancy skeleton: 5 baris bar dengan label + value -->
+        <!-- Occupancy skeleton: 5 bar rows with label + value -->
         <div
           v-if="store.isLoading"
           class="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"
@@ -197,7 +197,7 @@ onMounted(async () => {
         />
       </div>
 
-      <!-- Recent Activity: skeleton untuk list check-in -->
+      <!-- Recent Activity: skeleton for the check-in list -->
       <div
         v-if="store.isLoading"
         class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"

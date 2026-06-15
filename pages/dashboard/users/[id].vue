@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useAppStore } from '~/presentation/stores/app'
 import { useUserStore } from '~/presentation/stores/user'
+import { resolveEventImage } from '~/utils/event-image'
 import type { EventStatusValue } from '~/types/common'
 import type { RegistrationStatus } from '~/domain/entities/registration'
 
@@ -286,10 +287,10 @@ onBeforeUnmount(() => {
             >
               <div class="flex items-center gap-3 min-w-0 flex-grow">
                 <div class="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200 flex items-center justify-center">
-                  <i v-if="!reg.event.image" class="fa-solid fa-image text-slate-300" />
+                  <i v-if="!resolveEventImage(reg.event.image)" class="fa-solid fa-image text-slate-300" />
                   <img
                     v-else
-                    :src="reg.event.image"
+                    :src="resolveEventImage(reg.event.image)"
                     :alt="reg.event.title"
                     class="w-full h-full object-cover"
                   >

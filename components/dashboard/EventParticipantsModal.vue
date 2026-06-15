@@ -80,7 +80,7 @@ watch(
   () => props.modelValue,
   (newVal) => {
     if (newVal && props.event) {
-      // Refresh list saat modal dibuka
+      // Refresh the participant list every time the modal opens
       void regStore.fetchParticipants(props.event.id)
       search.value = ''
     }
@@ -126,7 +126,7 @@ watch(
         >
       </div>
 
-      <!-- List peserta -->
+      <!-- Participants list -->
       <div class="max-h-[55vh] overflow-y-auto pr-1">
         <DashboardEventParticipantsSkeleton v-if="isLoading" :rows="5" />
 

@@ -38,8 +38,8 @@ function emptyForm(): FormState {
   }
 }
 
-// Format ISO date string ke nilai input type="datetime-local"
-// (memerlukan format YYYY-MM-DDTHH:mm di timezone lokal).
+// Format an ISO date string to the value of an `<input type="datetime-local">`
+// (which requires the format YYYY-MM-DDTHH:mm in the local timezone).
 function toLocalInput(iso: string): string {
   if (!iso) return ''
   const d = new Date(iso)
@@ -86,8 +86,8 @@ watch(() => [props.modelValue, props.event] as const, ([open, event]) => {
   }
 })
 
-// Parameter dianotasi sebagai `globalThis.Event` agar tidak konflik dengan
-// type `Event` dari domain entities yang di-import di atas.
+// Parameter typed as `globalThis.Event` to avoid a name clash with the
+// `Event` type imported from domain entities above.
 async function onFileChange(e: globalThis.Event): Promise<void> {
   const target = e.target as HTMLInputElement | null
   if (!target) return

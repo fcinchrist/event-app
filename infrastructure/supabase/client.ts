@@ -31,8 +31,9 @@ export function useSupabaseClient(): SupabaseClient {
     )
   }
 
-  // Fallback lazy-init (hanya di client). Di server, plugin server wajib
-  // sudah berjalan dan meng-inject instance ke nuxtApp.$supabase.
+  // Lazy-init fallback (client-only). On the server, the server plugin
+  // must have already run and injected the instance into
+  // `nuxtApp.$supabase`.
   if (import.meta.client) {
     const cookies: CookieMethodsBrowser = {
       getAll() {

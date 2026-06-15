@@ -16,9 +16,9 @@ const props = withDefaults(defineProps<Props>(), {
   hintIcon: '',
 })
 
-// Semua tone diturunkan dari brand "emerald" sesuai standar.
-// Tone lain dipertahankan untuk backward compat, tapi default = emerald
-// sehingga seluruh ringkasan dashboard konsisten hijau.
+// All tone accents inherit from the brand "emerald" per design system.
+// Other tones are kept for backward compatibility, but the default is
+// emerald so the entire dashboard summary stays consistently green.
 const toneStyles: Record<Tone, { ring: string; iconBg: string; iconText: string; valueText: string; hintText: string }> = {
   emerald: {
     ring: 'ring-emerald-100',

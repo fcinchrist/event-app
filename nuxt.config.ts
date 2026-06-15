@@ -15,6 +15,12 @@ export default defineNuxtConfig({
       companyName: '',
       supabaseUrl: '',
       supabaseAnonKey: '',
+      // Placeholder URL for events that don't have a cover image yet.
+      // Used by the `resolveEventImage()` helper in utils/event-image.ts
+      // so public pages and the dashboard never render an `<img>` with
+      // an empty / 404 src. Can be hosted on Supabase Storage, a CDN,
+      // or a file in the public/ folder (absolute path).
+      defaultEventImage: '',
     },
   },
 

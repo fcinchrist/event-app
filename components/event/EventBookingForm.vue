@@ -6,14 +6,14 @@ import { normalizePhone } from '~/application/use-cases/normalize-phone'
 const appStore = useAppStore()
 const regStore = useRegistrationStore()
 
-// Flag "sekarang" agar konsisten dipakai bersama antara UI & handler.
-// Saat hari berganti (mis. user buka halaman melewati tengah malam),
-// computed isPast akan ikut re-evaluasi dan UI terupdate otomatis.
+// "Now" flag kept in sync between the UI and handlers.
+// When the calendar day rolls over (e.g. the user keeps the page open
+// past midnight), the `isPast` computed re-evaluates and the UI updates.
 const now = ref(new Date())
 let nowTimer: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
-  // Tick tiap 1 menit cukup: granularity pembanding di sini YYYY-MM-DD,
-  // tapi interval ini juga menjaga konsistensi kalau tab idle lama.
+  // A 1-minute tick is enough: the comparison is day-level (YYYY-MM-DD),
+  // and the interval also keeps the value fresh if the tab sits idle.
   nowTimer = setInterval(() => {
     now.value = new Date()
   }, 60_000)
@@ -22,7 +22,7 @@ onBeforeUnmount(() => {
   if (nowTimer) clearInterval(nowTimer)
 })
 
-// Form state lokal (tidak masuk ke global store)
+// Local form state (never mirrored to a global store)
 const noHp = ref('')
 const nama = ref('')
 const inlineError = ref<string | null>(null)
@@ -30,8 +30,8 @@ const successMessage = ref<string | null>(null)
 const wasAutofilled = ref(false)
 
 /**
- * Lookup debounce timer. Kita pakai 600ms (sesuai requirement user)
- * supaya tidak bombard Supabase setiap keystroke.
+ * Debounce timer for the phone lookup. We use 600ms (per product spec)
+ * so Supabase isn't hammered on every keystroke.
  */
 let lookupTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -69,8 +69,9 @@ async function handleSubmit(): Promise<void> {
 
   if (!appStore.selectedEvent) return
 
-  // Guard client-side untuk UX: kalau event sudah lewat / ditutup,
-  // jangan kirim request. Validasi akhir tetap ada di server (use case).
+  // Client-side guard for UX: if the event is already past / closed,
+  // do not send the request. The authoritative check still lives in
+  // the BookEvent use case on the server.
   if (isPast.value) {
     inlineError.value = 'Maaf, event ini sudah lewat dan tidak bisa di-booking lagi.'
     return
@@ -121,10 +122,10 @@ const isFull = computed(() => {
 })
 
 /**
- * True kalau tanggal event sudah lewat dari hari ini (level hari, YYYY-MM-DD).
- * Dipakai untuk disable form & tampilkan banner "sudah lewat" sebelum user
- * mencoba submit. Validasi authoritative tetap ada di BookEvent use case
- * untuk mencegah bypass dari client.
+ * True when the event date is before today (compared at the day level,
+ * YYYY-MM-DD). Used to disable the form and show a "past event" banner
+ * before the user attempts to submit. The authoritative validation still
+ * lives in the BookEvent use case to prevent client-side bypass.
  */
 const isPast = computed(() => {
   if (!appStore.selectedEvent?.date) return false
@@ -134,8 +135,9 @@ const isPast = computed(() => {
 })
 
 /**
- * True kalau event ber-status Dibatalkan atau Selesai. Dipakai untuk
- * disable form & tampilkan banner agar user tidak salah input.
+ * True when the event status is Cancelled (Dibatalkan) or Finished
+ * (Selesai). Used to disable the form and show a banner so users
+ * don't waste time filling it in.
  */
 const isClosed = computed(() => {
   const status = appStore.selectedEvent?.status
@@ -173,8 +175,8 @@ const isBookingDisabled = computed(() => {
       />
     </div>
 
-    <!-- Past / closed warnings: tampil paralel di atas form, masing-masing
-         hanya kalau relevan. Full + Past + Closed dicek independent. -->
+    <!-- Past / closed warnings: shown in parallel above the form, each one
+         only when relevant. Full + Past + Closed are checked independently. -->
     <div
       v-if="isFull"
       class="bg-rose-50 border border-rose-100 text-rose-800 p-3.5 rounded-xl text-xs flex gap-2"

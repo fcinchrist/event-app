@@ -39,8 +39,9 @@ export const useDashboardStore = defineStore('dashboard', {
     page: 1,
     limit: 10,
     search: '',
-    // isLoading default TRUE agar render pertama menampilkan skeleton
-    // sampai fetchEvents() pertama selesai (lihat helper.md: Loading State).
+    // `isLoading` defaults to TRUE so the first render shows a
+    // skeleton until the first `fetchEvents()` completes (see
+    // helper.md: "Loading State (Skeleton-only)").
     isLoading: true,
     isSubmitting: false,
     error: null,
@@ -91,7 +92,7 @@ export const useDashboardStore = defineStore('dashboard', {
         const repo = getEventRepository()
         const useCase = new CreateEvent(repo)
         const event = await useCase.execute(payload)
-        // prepend ke list & reset ke page 1
+        // prepend to the list and reset to page 1
         this.events = [event, ...this.events]
         this.page = 1
         return { success: true, error: null, event }
@@ -111,7 +112,7 @@ export const useDashboardStore = defineStore('dashboard', {
         const repo = getEventRepository()
         const useCase = new UpdateEvent(repo)
         const event = await useCase.execute({ id, ...payload })
-        // Sinkronkan dengan list lokal
+        // Sync the local list with the returned updated event.
         this.events = this.events.map((e) => (e.id === id ? event : e))
         if (this.selectedEvent?.id === id) this.selectedEvent = event
         return { success: true, error: null, event }
@@ -161,7 +162,7 @@ export const useDashboardStore = defineStore('dashboard', {
         const repo = getEventRepository()
         const useCase = new UpdateEventStatus(repo)
         const event = await useCase.execute(id, status)
-        // Sinkronkan dengan list lokal
+        // Sync the local list with the returned updated event.
         this.events = this.events.map((e) => (e.id === id ? event : e))
         if (this.selectedEvent?.id === id) this.selectedEvent = event
         return { success: true, error: null, event }

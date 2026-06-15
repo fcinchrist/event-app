@@ -54,6 +54,7 @@ This application is a **web-based Event Management System** built using:
 * No direct usage of Supabase response objects in application layers
 * **No `LoadingSpinner` or rotating spinners for page/section loading** — every loading state must use a Skeleton placeholder
 * **No inline ad-hoc skeletons (raw `animate-pulse` divs) in pages** — always compose the existing `SkeletonBlock` / `SkeletonCard` / feature-specific skeleton components
+* **No non-English comments anywhere in the codebase** — every comment (single-line `//`, block `/* */`, JSDoc, and HTML `<!-- -->` in `.vue` templates) must be written in **English only**. Indonesian (or any other language) is not allowed in code comments. The user-facing UI strings (labels, buttons, error messages) are excluded from this rule — only comments in source code must be English.
 
 ---
 
@@ -419,27 +420,54 @@ export interface Event {
 
 ---
 
-## Event Registration
+## Event User (Master User Publik)
+
+User publik yang pernah mendaftar di event manapun. Tidak butuh auth
+— cukup no HP + nama. ID format: `USR-YYYY-NNNNN` (custom string ID
+dengan tahun + 5 digit urut, agar mudah dibaca manual).
 
 ```ts
-export interface EventRegistration {
-  id: string
-  userId: string
-  eventId: string
-  registeredAt: string
+export interface EventUser {
+  id: string             // 'USR-2026-00001'
+  noHp: string           // '08123456789' (normalized, awalan '0')
+  nama: string
+  createdAt: string
+  updatedAt: string
 }
 ```
 
 ---
 
-## Event Attendance
+## Event Registration
+
+Satu baris = satu user yang mendaftar di satu event. ID format:
+`REG-YYYY-NNNNN`. Status lifecycle: `Terdaftar` → `Hadir` / `Tidak Hadir`.
 
 ```ts
-export interface EventAttendance {
-  id: string
-  userId: string
-  eventId: string
-  checkedInAt: string
+export type RegistrationStatus = 'Terdaftar' | 'Hadir' | 'Tidak Hadir'
+
+export interface Registration {
+  id: string             // 'REG-2026-00001'
+  userId: string         // FK -> event_users.id
+  eventId: string        // FK -> events.id (uuid)
+  status: RegistrationStatus
+  checkinAt: string | null
+  registeredAt: string
+}
+
+export interface RegistrationWithUser extends Registration {
+  user: EventUser
+}
+```
+
+---
+
+## User Stats (akumulasi kehadiran)
+
+```ts
+export interface UserStats {
+  totalRegistered: number  // pernah daftar di berapa event
+  totalAttended: number    // hadir di berapa event
 }
 ```
 
@@ -464,32 +492,59 @@ create table events (
 
 ---
 
-## event_registrations
+## event_users
+
+Master user publik (no auth). Tiap user yang pernah booking event
+pasti punya 1 baris di sini — sehingga `noHp` bisa dipakai sebagai
+key untuk autofill nama di form booking publik.
 
 ```sql
+create table event_users (
+  id text primary key,                    -- 'USR-2026-00001'
+  no_hp text unique not null,             -- '08123456789' (normalized, awalan '0')
+  nama text not null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+```
+
+---
+
+## event_registrations
+
+Satu baris = satu user × satu event. Custom string ID agar mudah
+dibaca. Status di-toggle manual oleh admin lewat dashboard.
+
+```sql
+create type registration_status as enum ('Terdaftar', 'Hadir', 'Tidak Hadir');
+
 create table event_registrations (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null,
-  event_id uuid not null,
+  id text primary key,                    -- 'REG-2026-00001'
+  user_id text not null references event_users(id) on delete cascade,
+  event_id uuid not null references events(id) on delete cascade,
+  status registration_status not null default 'Terdaftar',
+  checkin_at timestamptz,
   registered_at timestamptz default now(),
 
   unique(user_id, event_id)
 );
 ```
 
+Index untuk lookup cepat:
+
+```sql
+create index idx_event_registrations_event on event_registrations(event_id);
+create index idx_event_registrations_user on event_registrations(user_id);
+create index idx_event_registrations_status on event_registrations(status);
+```
+
 ---
 
 ## event_attendance
 
-```sql
-create table event_attendance (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null,
-  event_id uuid not null,
-  checked_in_at timestamptz default now(),
-
-  unique(user_id, event_id)
-);
+*Deprecated.* Status kehadiran sudah di-collapse ke kolom `status`
+di `event_registrations` (dengan `checkin_at` sebagai timestamp).
+Tabel ini tidak dibuat — cukup enum + kolom di tabel registrasi.
 ```
 
 ---
@@ -505,15 +560,40 @@ create table event_attendance (
 
 ## Registration Rules
 
-* One registration per user per event
-* Registration blocked when capacity is reached
+* Satu user hanya bisa terdaftar 1× per event (constraint `unique(user_id, event_id)` di DB).
+* Pendaftaran ditolak ketika kapasitas event penuh (dicek di use case `BookEvent` lewat `getSlotsTakenByEvent`).
+* User yang sama dengan `noHp` berbeda tetap dianggap 1 user — normalisasi `noHp` jadi `08123456789` sebelum lookup.
+* `checkin_at` di-set otomatis saat admin toggle status ke `Hadir`, dan di-reset ke `null` saat dikembalikan ke `Terdaftar`.
+* User yang `Tidak Hadir` di-exclude dari counter slot terisi (lihat `getSlotsTakenByEvent` di registration store).
+
+---
+
+## ID Generation Rules
+
+* Format ID publik: `USR-YYYY-NNNNN` untuk user, `REG-YYYY-NNNNN` untuk registrasi.
+* `YYYY` = tahun saat create (UTC), `NNNNN` = 5 digit urut (zero-padded).
+* Generate via `generateUniqueId(prefix, exists)` di [`application/use-cases/generate-id.ts`](application/use-cases/generate-id.ts:24) — random 5 digit + retry sampai 10× kalau bentrok.
+* Setelah ID terbentuk, suffix ditulis manual ke `users.id` / `registrations.id` (kita tidak pakai auto-increment/UUID untuk konsistensi format).
+* Tabel **tidak** punya default Postgres — id dihasilkan di layer aplikasi agar bisa di-retry tanpa round-trip DB.
+
+---
+
+## Phone Number Normalization Rules
+
+* Implementasi: [`normalizePhone(input)`](application/use-cases/normalize-phone.ts:10).
+* Algoritma: strip semua karakter non-digit, jika prefix `62` → ganti ke `0`, sisa digit harus 10–15.
+* Return `null` jika hasil normalisasi invalid (kirim error ke UI).
+* Wajib dipanggil **sebelum** `findByPhone` / `create` di repository — supaya `08123456789` dan `+62 812-3456-789` dianggap user yang sama.
+* Disimpan apa adanya di DB (format `0xxx`), tidak ditambah prefix `+62`.
 
 ---
 
 ## Attendance Rules
 
-* User must be registered before check-in
-* One check-in per event
+* Status pakai enum: `Terdaftar` | `Hadir` | `Tidak Hadir` (lihat [`types/registration-status.ts`](types/registration-status.ts)).
+* Tidak ada tabel `event_attendance` terpisah — kehadiran adalah kolom `status` + `checkin_at` di `event_registrations`.
+* Toggle kehadiran **hanya** lewat `EventParticipantsModal` di dashboard (admin only), tidak ada flow publik.
+* Toggle ke `Hadir` ⇒ set `checkin_at = now()`; toggle ke `Terdaftar` ⇒ set `checkin_at = null`.
 
 ---
 
@@ -528,14 +608,18 @@ create table event_attendance (
 
 ## Registration Use Cases
 
-* RegisterEvent
-* CancelRegistration
+* FindUserByPhone - lookup user by noHp
+* RegisterUser - create event_users row
+* BookEvent - register user and create registration
+* GetEventRegistrations - list participants
+* MarkAttendance - toggle status
+* GetUserStats - count attendance per user
 
 ---
 
 ## Attendance Use Cases
 
-* CheckInEvent
+* Attendance digabung ke MarkAttendance (mark-attendance.ts) - toggle status Hadir / Tidak Hadir / Terdaftar.
 
 ---
 
@@ -564,36 +648,45 @@ export interface EventRepository {
 
 ---
 
-## Registration Repository
+## User Repository
 
 ```ts
-export interface RegistrationRepository {
-  register(
-    userId: string,
-    eventId: string
-  ): Promise<void>
+export interface UserStats {
+  totalRegistered: number
+  totalAttended: number
+}
 
-  cancel(
-    userId: string,
-    eventId: string
-  ): Promise<void>
-
-  countByEvent(
-    eventId: string
-  ): Promise<number>
+export interface UserRepository {
+  findByPhone(noHp: string): Promise<EventUser | null>
+  findById(id: string): Promise<EventUser | null>
+  create(input: EventUserFormData): Promise<EventUser>
+  getStats(id: string): Promise<UserStats>
 }
 ```
 
 ---
 
-## Attendance Repository
+## Registration Repository
 
 ```ts
-export interface AttendanceRepository {
-  checkIn(
-    userId: string,
-    eventId: string
-  ): Promise<void>
+export interface RegistrationListParams {
+  page: number
+  limit: number
+}
+
+export interface RegistrationInput {
+  userId: string
+  eventId: string
+}
+
+export interface RegistrationRepository {
+  getAll(params: RegistrationListParams): Promise<PaginatedResult<RegistrationWithUser>>
+  getById(id: string): Promise<Registration | null>
+  findByUserAndEvent(userId: string, eventId: string): Promise<Registration | null>
+  create(input: RegistrationInput): Promise<Registration>
+  updateStatus(id: string, status: RegistrationStatus, checkinAt: string | null): Promise<Registration>
+  delete(id: string): Promise<void>
+  countByEvent(eventId: string): Promise<number>
 }
 ```
 
@@ -1010,3 +1103,4 @@ if (isEvent(data)) {
 * Strict TypeScript everywhere
 * Clean Architecture must be respected at all times
 * Any architecture violation should be treated as a bug, not a shortcut.
+* All code comments must be written in English (no Indonesian or other languages).

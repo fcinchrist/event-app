@@ -78,7 +78,7 @@ export class SupabaseUserRepository implements UserRepository {
   async getStats(id: string): Promise<UserStats> {
     const supabase = useSupabaseClient()
 
-    // totalRegistered counts every row (any status) so the
+    // totalRegistered counts every row regardless of status so the
     // "how many events has this user ever joined" number stays accurate.
     const { count: totalRegistered, error: err1 } = await supabase
       .from('event_registrations')
