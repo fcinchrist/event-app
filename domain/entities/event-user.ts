@@ -20,8 +20,12 @@ export type UserStatus = 'active' | 'inactive' | 'banned'
 
 /**
  * Tipe keanggotaan user.
- *  - internal : anggota internal komunitas (default, sesuai DEFAULT di migration 004)
- *  - external : peserta umum / di luar komunitas
+ *  - internal : anggota internal komunitas (di-set manual oleh admin dari dashboard)
+ *  - external : peserta umum / di luar komunitas (default untuk alur publik,
+ *               sesuai DEFAULT aplikasi di RegisterUser & AddUserModal)
+ *
+ * Catatan: DEFAULT kolom DB tetap 'internal' demi back-fill baris lama.
+ * Default aplikasi untuk pendaftaran publik baru adalah 'external'.
  */
 export type MemberType = 'internal' | 'external'
 

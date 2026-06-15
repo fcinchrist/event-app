@@ -3,6 +3,7 @@ import type { EventRepository } from '~/domain/repositories/event-repository'
 import type { RegistrationRepository } from '~/domain/repositories/registration-repository'
 import type { UserRepository } from '~/domain/repositories/user-repository'
 import { normalizePhone } from '~/application/use-cases/normalize-phone'
+import { RegisterUser } from '~/application/use-cases/register-user'
 
 export interface BookEventInput {
   noHp: string
@@ -15,7 +16,9 @@ export interface BookEventInput {
  *   1. Normalize the phone number
  *   2. Validate the event exists and its date is not in the past
  *   3. Look up an existing user by phone number
- *   4. If none exists, create a new user (name is required from input)
+ *   4. If none exists, create a new user via [`RegisterUser`]
+ *      (which applies the `'active'` + `'external'` defaults
+ *      and centralizes validation).
  *   5. Check for an existing registration (userId, eventId)
  *   6. If one exists, throw "You are already registered for this event"
  *   7. Insert a new registration
@@ -25,11 +28,15 @@ export interface BookEventInput {
  * manual requests via DevTools or third-party integrations).
  */
 export class BookEvent {
+  private readonly registerUser: RegisterUser
+
   constructor(
     private readonly userRepository: UserRepository,
     private readonly registrationRepository: RegistrationRepository,
     private readonly eventRepository: EventRepository,
-  ) {}
+  ) {
+    this.registerUser = new RegisterUser(userRepository)
+  }
 
   async execute(input: BookEventInput, now: Date = new Date()): Promise<Registration> {
     const noHp = normalizePhone(input.noHp)
@@ -59,7 +66,10 @@ export class BookEvent {
       throw new Error('Maaf, event ini sudah lewat dan tidak bisa di-booking lagi.')
     }
 
-    // 2. Look up the user, or create one if missing
+    // 2. Look up the user, or create one if missing.
+    // Pembuatan user lewat [`RegisterUser`] agar default
+    // `userStatus='active'` & `memberType='external'` (alur publik)
+    // dan validasi nama terpusat di satu tempat.
     let user = await this.userRepository.findByPhone(noHp)
     if (!user) {
       if (!input.nama || input.nama.trim().length < 2) {
@@ -67,9 +77,11 @@ export class BookEvent {
           'Nomor HP belum pernah terdaftar. Mohon isi nama Anda.',
         )
       }
-      user = await this.userRepository.create({
+      user = await this.registerUser.execute({
         noHp,
         nama: input.nama.trim(),
+        // Tidak mengirim userStatus / memberType —
+        // [`RegisterUser`] akan isi default `'active'` / `'external'`.
       })
     }
 

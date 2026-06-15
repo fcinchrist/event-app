@@ -32,9 +32,10 @@ function emptyForm(): FormState {
     nama: '',
     noHp: '',
     // Default ke nilai yang konsisten dengan DEFAULT di migration 004
-    // dan use-case RegisterUser.
+    // dan use-case RegisterUser. Alur publik diasumsikan user eksternal,
+    // admin bisa override lewat dropdown sebelum submit.
     userStatus: 'active',
-    memberType: 'internal',
+    memberType: 'external',
   }
 }
 

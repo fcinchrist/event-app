@@ -480,7 +480,8 @@ Status akun dan tipe keanggotaan ditambahkan oleh
 [`supabase/migrations/004_event_users_extended.sql`](./supabase/migrations/004_event_users_extended.sql):
 
 - `userStatus`: `'active'` (default) / `'inactive'` / `'banned'`
-- `memberType`: `'internal'` (default) / `'external'`
+- `memberType`: `'internal'` / `'external'` (default alur publik: `'external'`,
+  DEFAULT DB: `'internal'` untuk back-fill baris lama)
 
 ```ts
 export type UserStatus = 'active' | 'inactive' | 'banned'
@@ -584,6 +585,9 @@ create table event_users (
   nama text not null,
   user_status text not null default 'active'      -- 'active' | 'inactive' | 'banned'
     check (user_status in ('active', 'inactive', 'banned')),
+  -- DEFAULT 'internal' hanya untuk back-fill baris lama.
+  -- Aplikasi mengirim 'external' secara eksplisit untuk user baru
+  -- dari alur publik (lihat RegisterUser use case).
   member_type text not null default 'internal'    -- 'internal' | 'external'
     check (member_type in ('internal', 'external')),
   created_at timestamptz default now(),
@@ -597,7 +601,11 @@ create index idx_event_users_member_type on event_users(member_type);
 `user_status` & `member_type` ditambah lewat migration
 `004_event_users_extended.sql` — kolom lama di-backfill otomatis
 dengan default `'active'` / `'internal'`, jadi tidak ada baris yang
-kehilangan nilai setelah migrasi dijalankan.
+kehilangan nilai setelah migrasi dijalankan. Migration ini juga
+menambah policy `event_users_insert_public` agar alur publik
+(form booking) bisa membuat baris `event_users` baru tanpa login.
+Update & delete tetap hanya untuk admin via policy
+`event_users_write_admin` dari migration 002.
 
 ---
 
@@ -798,8 +806,10 @@ Tabel ini tidak dibuat — cukup enum + kolom di tabel registrasi.
 
 * FindUserByPhone - lookup user by noHp
 * RegisterUser - create event_users row. Default `userStatus =
-  'active'`, `memberType = 'internal'` (sesuai DEFAULT migration
-  004). Caller boleh override dengan mengirim input lengkap.
+  'active'`, `memberType = 'external'` (alur publik diasumsikan
+  user eksternal; DEFAULT DB tetap 'internal' untuk back-fill
+  baris lama). Caller boleh override dengan mengirim input lengkap,
+  mis. admin membuat user internal dari dashboard.
 * UpdateUser - update `nama`, `noHp`, `userStatus`, `memberType`.
   Normalisasi noHp lewat `normalizePhone`. Pesan error ramah untuk
   noHp konflik (`23505`) dan user tidak ditemukan (`PGRST116`).

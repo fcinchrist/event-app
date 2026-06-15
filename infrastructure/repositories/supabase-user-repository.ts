@@ -76,14 +76,22 @@ export class SupabaseUserRepository implements UserRepository {
       return data !== null
     })
 
+    // Default yang aman: kalau caller (use case) tidak mengirim
+    // `user_status` / `member_type`, repository tetap menulis
+    // nilai eksplisit sehingga baris tidak terjatuh ke DEFAULT DB.
+    //
+    // Kenapa tidak pakai DEFAULT DB? Karena DEFAULT 'internal' di
+    // migration 004 hanya untuk back-fill baris lama. Untuk baris
+    // baru, aplikasi harus mengirim 'active' + 'external' (alur
+    // publik) — lihat [`RegisterUser`](application/use-cases/register-user.ts).
     const { data, error } = await supabase
       .from('event_users')
       .insert({
         id,
         no_hp: input.noHp,
         nama: input.nama,
-        user_status: input.userStatus,
-        member_type: input.memberType,
+        user_status: input.userStatus ?? 'active',
+        member_type: input.memberType ?? 'external',
       })
       .select('*')
       .single()
@@ -101,14 +109,25 @@ export class SupabaseUserRepository implements UserRepository {
   async update(id: string, input: EventUserFormData): Promise<EventUser> {
     const supabase = useSupabaseClient()
 
+    // Untuk UPDATE: hanya timpa kolom yang memang dikirim caller.
+    // Gunakan pendekatan "spread if defined" agar admin bisa
+    // mengubah satu field tanpa menimpa yang lain. Tapi agar
+    // konsisten dengan alur create, kita isi default hanya saat
+    // caller memang berniat men-set field ini.
+    const updatePayload: Record<string, unknown> = {
+      no_hp: input.noHp,
+      nama: input.nama,
+    }
+    if (input.userStatus !== undefined) {
+      updatePayload.user_status = input.userStatus
+    }
+    if (input.memberType !== undefined) {
+      updatePayload.member_type = input.memberType
+    }
+
     const { data, error } = await supabase
       .from('event_users')
-      .update({
-        no_hp: input.noHp,
-        nama: input.nama,
-        user_status: input.userStatus,
-        member_type: input.memberType,
-      })
+      .update(updatePayload)
       .eq('id', id)
       .select('*')
       .single()

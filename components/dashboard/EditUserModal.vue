@@ -32,8 +32,11 @@ function emptyForm(): FormState {
   return {
     nama: '',
     noHp: '',
+    // Default eksternal, konsisten dengan DEFAULT migration 004 dan
+    // use-case RegisterUser. Form edit biasanya sudah diprefill dari
+    // props.user, jadi nilai ini hanya fallback.
     userStatus: 'active',
-    memberType: 'internal',
+    memberType: 'external',
   }
 }
 

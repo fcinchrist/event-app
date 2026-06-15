@@ -8,10 +8,15 @@ export class RegisterUser {
   /**
    * Buat user baru. Input noHp akan dinormalisasi dulu.
    *
-   * Default: `userStatus = 'active'` dan `memberType = 'internal'`
+   * Default: `userStatus = 'active'` dan `memberType = 'external'`
    * untuk seluruh alur pendaftaran publik — sesuai DEFAULT di
    * migration 004. Caller boleh override dengan mengirim input
    * yang sudah lengkap (mis. admin membuat user baru dari dashboard).
+   *
+   * Catatan: alur publik diasumsikan user eksternal (umum) yang
+   * mendaftarkan dirinya sendiri. Admin yang membuat user internal
+   * lewat dashboard harus mengirim `memberType: 'internal'` secara
+   * eksplisit agar tipenya benar.
    *
    * Melempar Error kalau noHp tidak valid, nama kosong, atau noHp
    * sudah dipakai user lain.
@@ -29,11 +34,11 @@ export class RegisterUser {
       noHp,
       nama,
       // Fall back to safe defaults. Memastikan baris baru selalu punya
-      // status aktif + tipe internal, sehingga konsistensi dengan
-      // DEFAULT migration 004 terjaga walau caller tidak mengirim
-      // field ini (mis. form booking publik).
+      // status aktif + tipe external (default alur publik), sehingga
+      // konsistensi dengan DEFAULT migration 004 terjaga walau caller
+      // tidak mengirim field ini (mis. form booking publik).
       userStatus: input.userStatus ?? 'active',
-      memberType: input.memberType ?? 'internal',
+      memberType: input.memberType ?? 'external',
     })
   }
 }
