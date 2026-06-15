@@ -44,7 +44,10 @@ export const useAppStore = defineStore('app', {
     filterPeriode: 'all',
     filterTanggal: '',
     page: 1,
-    perPage: 6,
+    // Jumlah event per halaman di UI publik. Pagination di sini server-side
+    // (lihat fetchEvents → repo.range()), sehingga tiap klik next/prev
+    // mengambil slice berikutnya dari Supabase.
+    perPage: 9,
     events: [],
     // Bookings kosong: belum ada tabel event_registrations di Supabase.
     // Kalau nanti ditambah, ganti `fetchBookings()` (pola yang sama dengan events).
@@ -117,9 +120,13 @@ export const useAppStore = defineStore('app', {
       try {
         const repo = new SupabaseEventRepository()
         const useCase = new GetEvents(repo)
-        // Ambil sampai 20 event (max di repository). Untuk halaman utama
-        // yang paginasi client-side 6 per halaman, ini sudah cukup.
-        const result = await useCase.execute({ page: 1, limit: 20 })
+        // Ambil window besar dari Supabase (server-side range) supaya
+        // pagination 9/halaman di UI bisa menjangkau banyak event.
+        // Filter (Semua / Akan Datang / Hari H / Selesai / custom date)
+        // tetap di client (lihat `filteredEvents` getter) untuk UX cepat
+        // tanpa round-trip. Backend saat ini hanya support `search`.
+        // Catatan: cap use case = 20. Naikkan jika list event tumbuh.
+        const result = await useCase.execute({ page: 1, limit: 100 })
         this.events = result.data
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Gagal memuat event.'

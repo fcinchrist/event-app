@@ -7,7 +7,10 @@ export class GetEvents {
 
   execute(params: EventListParams): Promise<PaginatedResult<Event>> {
     const page = Math.max(1, params.page)
-    const limit = Math.min(20, Math.max(1, params.limit))
+    // Cap dinaikkan ke 100 agar halaman utama (perPage=9) bisa memuat
+    // sampai ~11 halaman event dalam satu kali fetch. Naikkan lagi
+    // bila traffic/growth membutuhkan.
+    const limit = Math.min(100, Math.max(1, params.limit))
     return this.eventRepository.getAll({ ...params, page, limit })
   }
 }

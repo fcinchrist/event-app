@@ -6,7 +6,10 @@ import { useSupabaseClient } from '~/infrastructure/supabase/client'
 import { mapEventRow } from '~/infrastructure/mappers/event-mapper'
 
 const EVENTS_BUCKET = 'event-images'
-const MAX_BUCKET_LIMIT = 20
+// Cap server-side range query. Dinaikkan dari 20 ke 100 supaya UI publik
+// (perPage=9) punya cukup data untuk multi-page pagination dalam satu
+// kali fetchEvents(). Tetap dibatasi untuk melindungi dari request besar.
+const MAX_BUCKET_LIMIT = 100
 
 export class SupabaseEventRepository implements EventRepository {
   async getAll(params: EventListParams): Promise<PaginatedResult<Event>> {
