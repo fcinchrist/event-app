@@ -4,6 +4,12 @@ import { useUserStore } from '~/presentation/stores/user'
 import { resolveEventImage } from '~/utils/event-image'
 import type { EventStatusValue } from '~/types/common'
 import type { RegistrationStatus } from '~/domain/entities/registration'
+import {
+  MEMBER_TYPE_LABELS,
+  USER_STATUS_LABELS,
+  type MemberType,
+  type UserStatus,
+} from '~/domain/entities/event-user'
 
 definePageMeta({
   layout: 'default',
@@ -48,12 +54,43 @@ const EVENT_STATUS_STYLES: Record<EventStatusValue, { badge: string; dot: string
   Selesai: { badge: 'bg-slate-100 text-slate-600 border-slate-200', dot: 'bg-slate-400' },
 }
 
+const USER_STATUS_STYLES: Record<UserStatus, { badge: string; dot: string }> = {
+  active: { badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+  inactive: { badge: 'bg-slate-100 text-slate-600 border-slate-200', dot: 'bg-slate-400' },
+  banned: { badge: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500' },
+}
+
+const MEMBER_TYPE_STYLES: Record<MemberType, { badge: string; dot: string }> = {
+  internal: { badge: 'bg-indigo-50 text-indigo-700 border-indigo-200', dot: 'bg-indigo-500' },
+  external: { badge: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500' },
+}
+
 function statusStyle(s: RegistrationStatus): { label: string; badge: string; dot: string } {
   return STATUS_STYLES[s] ?? STATUS_STYLES.Terdaftar
 }
 
 function eventStatusStyle(s: EventStatusValue): { badge: string; dot: string } {
   return EVENT_STATUS_STYLES[s] ?? EVENT_STATUS_STYLES.Aktif
+}
+
+function userStatusStyle(s: UserStatus): { badge: string; dot: string } {
+  return USER_STATUS_STYLES[s] ?? USER_STATUS_STYLES.active
+}
+
+function memberStyle(s: MemberType): { badge: string; dot: string } {
+  return MEMBER_TYPE_STYLES[s] ?? MEMBER_TYPE_STYLES.internal
+}
+
+/**
+ * Pilih warna badge tingkat kehadiran per kategori. Hijau untuk yang
+ * tinggi, kuning sedang, merah rendah; abu-abu untuk kategori tanpa
+ * event.
+ */
+function attendanceColor(rate: number): { bar: string; text: string } {
+  if (rate >= 75) return { bar: 'bg-emerald-500', text: 'text-emerald-700' }
+  if (rate >= 50) return { bar: 'bg-lime-500', text: 'text-lime-700' }
+  if (rate >= 25) return { bar: 'bg-amber-500', text: 'text-amber-700' }
+  return { bar: 'bg-rose-500', text: 'text-rose-700' }
 }
 
 function formatDay(iso: string): string {
@@ -112,12 +149,51 @@ const attendanceRate = computed<number>(() => {
   return Math.round((totalAttended / totalRegistered) * 100)
 })
 
+/**
+ * Handler untuk year-pill. Mengganti `selectedAttendanceYear` di
+ * store lalu refetch stats sesuai tahun yang baru.
+ */
+async function onYearPill(year: number | null): Promise<void> {
+  store.setAttendanceYear(year)
+  if (userId.value) {
+    await store.fetchUserAttendanceByCategory(userId.value)
+  }
+}
+
+// === Edit modal state ===
+const showEditModal = ref(false)
+
+function openEditModal(): void {
+  showEditModal.value = true
+}
+
+/**
+ * Handler untuk event `updated` dari <DashboardEditUserModal>.
+ * Store sudah memanggil `fetchUserDetail` di dalam `updateUser`,
+ * jadi data profile + attendance akan ikut ter-refresh otomatis.
+ */
+async function onUpdated(updatedId: string): Promise<void> {
+  showEditModal.value = false
+  if (updatedId && updatedId === userId.value) {
+    await Promise.all([
+      store.fetchUserRegistrationYears(updatedId),
+      store.fetchUserAttendanceByCategory(updatedId),
+    ])
+  }
+}
+
 onMounted(async () => {
   if (appStore.authUser === null) {
     await appStore.initAuth()
   }
   if (!userId.value) return
   await store.fetchUserDetail(userId.value)
+  // Tarik daftar tahun & statistik per-kategori. Dilakukan paralel
+  // untuk memperpendek waktu tampil di UI.
+  await Promise.all([
+    store.fetchUserRegistrationYears(userId.value),
+    store.fetchUserAttendanceByCategory(userId.value),
+  ])
 })
 
 onBeforeUnmount(() => {
@@ -146,9 +222,20 @@ onBeforeUnmount(() => {
             {{ config.public.companyName }}.
           </p>
         </div>
-        <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 text-[11px] text-indigo-700 font-bold">
-          <i class="fa-solid fa-shield-halved" />
-          <span>Mode Admin — no HP tidak di-mask</span>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 text-[11px] text-indigo-700 font-bold">
+            <i class="fa-solid fa-shield-halved" />
+            <span>Mode Admin — no HP tidak di-mask</span>
+          </span>
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold shadow-sm transition-all"
+            data-testid="detail-edit-user"
+            @click="openEditModal"
+          >
+            <i class="fa-solid fa-pen-to-square" />
+            <span>Edit User</span>
+          </button>
         </div>
       </header>
 
@@ -213,6 +300,28 @@ onBeforeUnmount(() => {
                   <i class="fa-regular fa-calendar text-slate-400" />
                   Terdaftar {{ formatDay(store.selectedUser.createdAt) }}
                 </span>
+                <!-- User status badge -->
+                <span
+                  :class="[
+                    'inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border font-bold',
+                    userStatusStyle(store.selectedUser.userStatus).badge,
+                  ]"
+                >
+                  <span :class="['w-1.5 h-1.5 rounded-full', userStatusStyle(store.selectedUser.userStatus).dot]" />
+                  <i class="fa-solid fa-user-shield text-[10px]" />
+                  {{ USER_STATUS_LABELS[store.selectedUser.userStatus] }}
+                </span>
+                <!-- Member type badge -->
+                <span
+                  :class="[
+                    'inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border font-bold',
+                    memberStyle(store.selectedUser.memberType).badge,
+                  ]"
+                >
+                  <span :class="['w-1.5 h-1.5 rounded-full', memberStyle(store.selectedUser.memberType).dot]" />
+                  <i class="fa-solid fa-id-badge text-[10px]" />
+                  {{ MEMBER_TYPE_LABELS[store.selectedUser.memberType] }}
+                </span>
               </div>
             </div>
           </div>
@@ -251,6 +360,140 @@ onBeforeUnmount(() => {
                 class="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-500 transition-all"
                 :style="{ width: `${attendanceRate}%` }"
               />
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ Tingkat Kehadiran per Kategori ============ -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-5 py-3 border-b border-slate-200 bg-slate-50 space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                  <i class="fa-solid fa-chart-column text-emerald-500" />
+                  Tingkat Kehadiran per Kategori
+                </h3>
+                <p class="text-[11px] text-slate-500 mt-0.5">
+                  Persentase kehadiran dikelompokkan per kategori event.
+                </p>
+              </div>
+              <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                {{
+                  store.selectedAttendanceYear === null
+                    ? 'Semua Tahun'
+                    : `Tahun ${store.selectedAttendanceYear}`
+                }}
+              </span>
+            </div>
+
+            <!-- Year filter pills -->
+            <div
+              v-if="store.attendanceYears.length > 0"
+              class="flex flex-wrap items-center gap-1.5"
+            >
+              <button
+                type="button"
+                :class="[
+                  'px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors',
+                  store.selectedAttendanceYear === null
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100',
+                ]"
+                @click="onYearPill(null)"
+              >
+                Semua
+              </button>
+              <button
+                v-for="year in store.attendanceYears"
+                :key="year"
+                type="button"
+                :class="[
+                  'px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors',
+                  store.selectedAttendanceYear === year
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100',
+                ]"
+                @click="onYearPill(year)"
+              >
+                {{ year }}
+              </button>
+            </div>
+          </div>
+
+          <div
+            v-if="store.isLoadingAttendance"
+            class="p-6 space-y-3"
+          >
+            <UiSkeletonBlock variant="bar" width="w-full" height="h-4" />
+            <UiSkeletonBlock variant="bar" width="w-full" height="h-4" />
+            <UiSkeletonBlock variant="bar" width="w-full" height="h-4" />
+          </div>
+
+          <div
+            v-else-if="store.attendanceError"
+            class="p-6 text-sm text-rose-700 bg-rose-50 border-t border-rose-200"
+          >
+            <i class="fa-solid fa-circle-exclamation mr-1" />
+            {{ store.attendanceError }}
+          </div>
+
+          <div
+            v-else-if="store.attendanceByCategory.length === 0"
+            class="p-10 text-center text-slate-500"
+          >
+            <i class="fa-solid fa-chart-column text-3xl text-slate-300 mb-2" />
+            <p class="text-sm font-semibold">
+              Belum ada data kehadiran
+              {{ store.selectedAttendanceYear === null ? '' : `untuk tahun ${store.selectedAttendanceYear}` }}.
+            </p>
+          </div>
+
+          <div v-else class="divide-y divide-slate-100">
+            <div
+              v-for="cat in store.attendanceByCategory"
+              :key="`${cat.categoryId ?? 'none'}-${cat.categoryName}`"
+              class="px-5 py-3 flex flex-col sm:flex-row sm:items-center gap-3"
+            >
+              <div class="flex items-center gap-2 min-w-0 flex-grow">
+                <div
+                  :class="[
+                    'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
+                    cat.categoryId === null
+                      ? 'bg-slate-100 text-slate-500'
+                      : 'bg-indigo-50 text-indigo-600',
+                  ]"
+                >
+                  <i
+                    :class="cat.categoryId === null ? 'fa-solid fa-circle-question' : 'fa-solid fa-tag'"
+                    class="text-xs"
+                  />
+                </div>
+                <div class="min-w-0">
+                  <p class="font-bold text-slate-900 text-sm truncate">
+                    {{ cat.categoryName }}
+                  </p>
+                  <p class="text-[11px] text-slate-500">
+                    {{ cat.totalRegistered }} event terdaftar ·
+                    {{ cat.totalAttended }} hadir
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center gap-3 shrink-0 w-full sm:w-1/2">
+                <div class="flex-grow h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    :class="['h-full rounded-full transition-all', attendanceColor(cat.attendanceRate).bar]"
+                    :style="{ width: `${cat.attendanceRate}%` }"
+                  />
+                </div>
+                <span
+                  :class="[
+                    'text-sm font-extrabold tabular-nums w-12 text-right',
+                    attendanceColor(cat.attendanceRate).text,
+                  ]"
+                >
+                  {{ cat.attendanceRate }}%
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -341,5 +584,12 @@ onBeforeUnmount(() => {
         </div>
       </template>
     </section>
+
+    <!-- ============ Edit User Modal ============ -->
+    <DashboardEditUserModal
+      v-model="showEditModal"
+      :user="store.selectedUser"
+      @updated="onUpdated"
+    />
   </DashboardShell>
 </template>

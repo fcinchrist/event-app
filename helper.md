@@ -476,13 +476,42 @@ User publik yang pernah mendaftar di event manapun. Tidak butuh auth
 — cukup no HP + nama. ID format: `USR-YYYY-NNNNN` (custom string ID
 dengan tahun + 5 digit urut, agar mudah dibaca manual).
 
+Status akun dan tipe keanggotaan ditambahkan oleh
+[`supabase/migrations/004_event_users_extended.sql`](./supabase/migrations/004_event_users_extended.sql):
+
+- `userStatus`: `'active'` (default) / `'inactive'` / `'banned'`
+- `memberType`: `'internal'` (default) / `'external'`
+
 ```ts
+export type UserStatus = 'active' | 'inactive' | 'banned'
+export type MemberType = 'internal' | 'external'
+
+export const USER_STATUS_LABELS: Record<UserStatus, string> = {
+  active: 'Aktif',
+  inactive: 'Nonaktif',
+  banned: 'Diblokir',
+}
+
+export const MEMBER_TYPE_LABELS: Record<MemberType, string> = {
+  internal: 'Internal',
+  external: 'Eksternal',
+}
+
 export interface EventUser {
   id: string             // 'USR-2026-00001'
   noHp: string           // '08123456789' (normalized, awalan '0')
   nama: string
+  userStatus: UserStatus
+  memberType: MemberType
   createdAt: string
   updatedAt: string
+}
+
+export interface EventUserFormData {
+  noHp: string
+  nama: string
+  userStatus: UserStatus
+  memberType: MemberType
 }
 ```
 
@@ -553,10 +582,22 @@ create table event_users (
   id text primary key,                    -- 'USR-2026-00001'
   no_hp text unique not null,             -- '08123456789' (normalized, awalan '0')
   nama text not null,
+  user_status text not null default 'active'      -- 'active' | 'inactive' | 'banned'
+    check (user_status in ('active', 'inactive', 'banned')),
+  member_type text not null default 'internal'    -- 'internal' | 'external'
+    check (member_type in ('internal', 'external')),
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+create index idx_event_users_user_status on event_users(user_status);
+create index idx_event_users_member_type on event_users(member_type);
 ```
+
+`user_status` & `member_type` ditambah lewat migration
+`004_event_users_extended.sql` — kolom lama di-backfill otomatis
+dengan default `'active'` / `'internal'`, jadi tidak ada baris yang
+kehilangan nilai setelah migrasi dijalankan.
 
 ---
 
@@ -756,11 +797,25 @@ Tabel ini tidak dibuat — cukup enum + kolom di tabel registrasi.
 ## Registration Use Cases
 
 * FindUserByPhone - lookup user by noHp
-* RegisterUser - create event_users row
+* RegisterUser - create event_users row. Default `userStatus =
+  'active'`, `memberType = 'internal'` (sesuai DEFAULT migration
+  004). Caller boleh override dengan mengirim input lengkap.
+* UpdateUser - update `nama`, `noHp`, `userStatus`, `memberType`.
+  Normalisasi noHp lewat `normalizePhone`. Pesan error ramah untuk
+  noHp konflik (`23505`) dan user tidak ditemukan (`PGRST116`).
+* DeleteUser - hapus user. Relasi `event_registrations` ter-cascade.
+* GetUserRegistrations - list event yang pernah diikuti user
+  (joined `events`).
 * BookEvent - register user and create registration
 * GetEventRegistrations - list participants
 * MarkAttendance - toggle status
 * GetUserStats - count attendance per user
+* GetUserAttendanceByCategory - statistik kehadiran per kategori
+  event (di-filter `year` opsional).
+* GetUserRegistrationYears - daftar tahun unik event yang pernah
+  diikuti user, diurutkan descending.
+* ListUsers - pagination + search server-side untuk halaman
+  Master User di dashboard admin.
 
 ---
 
@@ -844,13 +899,63 @@ export interface UserStats {
   totalAttended: number
 }
 
+/**
+ * Statistik kehadiran satu user yang dikelompokkan per kategori event.
+ * Tahun mengikuti `event.date` (bukan `registered_at`);
+ * `year = null` artinya lifetime (semua tahun).
+ */
+export interface CategoryAttendanceStat {
+  categoryId: string | null   // null = event tanpa kategori
+  categoryName: string        // 'Tanpa Kategori' untuk categoryId null
+  totalRegistered: number
+  totalAttended: number
+  attendanceRate: number      // 0-100, dibulatkan
+}
+
+export interface UserListParams {
+  page: number
+  limit: number
+  search?: string
+}
+
 export interface UserRepository {
   findByPhone(noHp: string): Promise<EventUser | null>
   findById(id: string): Promise<EventUser | null>
   create(input: EventUserFormData): Promise<EventUser>
+  update(id: string, input: EventUserFormData): Promise<EventUser>
+  delete(id: string): Promise<void>
   getStats(id: string): Promise<UserStats>
+  listUsers(params: UserListParams): Promise<PaginatedResult<EventUser>>
+  getStatsByCategory(
+    userId: string,
+    year: number | null,
+  ): Promise<CategoryAttendanceStat[]>
+  getRegistrationYears(userId: string): Promise<number[]>
 }
 ```
+
+Behavior repository (SupabaseUserRepository):
+
+* `create()` & `update()` menerjemahkan Postgres error `23505`
+  (unique_violation) ke pesan Indonesia yang ramah (duplicate
+  no_hp).
+* `update()` menerjemahkan `PGRST116` (no row matches) ke
+  `Error('User tidak ditemukan.')`.
+* `delete()` mendeteksi baris yang tidak ada dengan
+  `.delete().eq(...).select('id')` — jika `data.length === 0`,
+  melempar `Error('User tidak ditemukan.')`. Relasi
+  `event_registrations` ter-cascade, sehingga `delete()` juga
+  membersihkan seluruh data kehadiran user.
+* `getStatsByCategory(userId, year)` menarik registrasi user
+  dengan join ke `events` + `event_categories`, lalu agregasi
+  di app-layer (group by `categoryId`, hitung `totalRegistered`
+  dan `totalAttended`, hitung `attendanceRate`).
+  Event tanpa kategori dikelompokkan ke `(null, 'Tanpa Kategori')`.
+  Filter tahun dilakukan di app-layer dengan membaca
+  `event.date.getFullYear()`.
+* `getRegistrationYears(userId)` menarik `event.date` dari
+  registrasi user, lalu mengelompokkan tahun unik, diurutkan
+  descending (terbaru dulu).
 
 ---
 

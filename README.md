@@ -17,8 +17,10 @@ A full-stack event management platform built with **Nuxt 3**, **Vue 3**, **Pinia
 ### Admin (Supabase Auth)
 - 🔐 **Email/password login** with a dedicated `/admin/login` page and a password-reset flow.
 - 📊 **Dashboard** with KPIs (total events, total reservations, attendance rate), an occupancy list of the top 5 events, and a recent activity feed.
-- 🗓️ **Event management** — create, edit, and soft-cancel events; upload cover images; set quota and status.
-- 👥 **Master user** list with per-user event history and reservation counts.
+- 🗓️ **Event management** — create, edit, and soft-cancel events; upload cover images; set quota and status; tag every event with an optional category.
+- 🏷️ **Master kategori** — manage the reusable list of event categories (Sport, Workshop, Gathering, etc.) from `/dashboard/categories`. A category cannot be deleted while at least one event still references it.
+- 👥 **Master user** list with per-user event history and reservation counts. Admins can create, edit, and delete users directly from the dashboard, and every user carries a `user_status` (`active` / `inactive` / `banned`) and `member_type` (`internal` / `external`).
+- 📊 **Per-category attendance** on the user detail page — see which event categories a user attends most, filterable by year.
 - ✅ **Attendance tracking** — open an event, see all registered users, and toggle each one's status between `Terdaftar` ↔ `Hadir` ↔ `Tidak Hadir`.
 
 ---
@@ -52,7 +54,7 @@ event-web/
 │       └── ...
 │
 ├── domain/                   # Pure domain model — no Nuxt, no Supabase
-│   ├── entities/             # Event, EventUser, Registration
+│   ├── entities/             # Event, EventCategory, EventUser, Registration
 │   └── repositories/         # Interfaces only
 │
 ├── infrastructure/           # Adapters to the outside world
@@ -80,6 +82,7 @@ event-web/
 │   └── dashboard/            # Protected (auth middleware)
 │       ├── index.vue
 │       ├── events.vue
+│       ├── categories.vue
 │       └── users/
 │
 ├── layouts/
@@ -95,7 +98,9 @@ event-web/
 ├── supabase/
 │   └── migrations/
 │       ├── 001_events.sql
-│       └── 002_event_users_and_registrations.sql
+│       ├── 002_event_users_and_registrations.sql
+│       ├── 003_event_categories.sql
+│       └── 004_event_users_extended.sql
 │
 ├── types/                    # Cross-cutting TypeScript types
 ├── assets/                   # Global CSS, fonts
@@ -133,13 +138,23 @@ This separation means swapping Supabase for a different backend would only requi
 
 ## 🗄️ Data Model
 
-Three tables (defined in [`supabase/migrations/`](./supabase/migrations/)):
+Four tables (defined in [`supabase/migrations/`](./supabase/migrations/)):
 
-| Table                  | Purpose                                                         |
-| ---------------------- | --------------------------------------------------------------- |
-| `events`               | Title, description, date, location, quota, image, status        |
-| `event_users`          | Master user list keyed by normalized phone number (no auth)     |
-| `event_registrations`  | Junction: `(user_id, event_id)` + status + check-in timestamp   |
+| Table                  | Purpose                                                                |
+| ---------------------- | ---------------------------------------------------------------------- |
+| `events`               | Title, description, date, location, quota, image, status, **category** |
+| `event_categories`     | Master list of activity categories (Sport, Workshop, Gathering, etc.)  |
+| `event_users`          | Master user list keyed by normalized phone number (no auth)            |
+| `event_registrations`  | Junction: `(user_id, event_id)` + status + check-in timestamp          |
+
+Each event may optionally reference one category via the nullable
+`category_id` foreign key on `events`. A category **cannot be
+deleted** while at least one event still references it — the FK is
+declared with `ON DELETE RESTRICT` in
+[`003_event_categories.sql`](./supabase/migrations/003_event_categories.sql).
+The repository layer translates the resulting Postgres error
+`23503` (`foreign_key_violation`) into a user-friendly message in
+the admin UI.
 
 ### Registration status lifecycle
 
@@ -156,7 +171,7 @@ Three tables (defined in [`supabase/migrations/`](./supabase/migrations/)):
 
 ### Row-Level Security
 
-Both data tables are public-read for `anon` and `authenticated`. Only authenticated (admins) can update or delete registrations. See [`002_event_users_and_registrations.sql`](./supabase/migrations/002_event_users_and_registrations.sql) for the full policy definitions.
+All three data tables (`event_categories`, `event_users`, `event_registrations`) are public-read for `anon` and `authenticated`. Only authenticated (admins) can update or delete registrations, and only admins can create / update / delete event categories. See [`002_event_users_and_registrations.sql`](./supabase/migrations/002_event_users_and_registrations.sql) and [`003_event_categories.sql`](./supabase/migrations/003_event_categories.sql) for the full policy definitions.
 
 ---
 
@@ -203,6 +218,8 @@ In the Supabase SQL Editor, run the migrations **in order**:
 
 1. [`supabase/migrations/001_events.sql`](./supabase/migrations/001_events.sql) — creates the `events` table and indexes.
 2. [`supabase/migrations/002_event_users_and_registrations.sql`](./supabase/migrations/002_event_users_and_registrations.sql) — creates `event_users` and `event_registrations` tables, RLS policies, and triggers.
+3. [`supabase/migrations/003_event_categories.sql`](./supabase/migrations/003_event_categories.sql) — adds `event_categories` and the `events.category_id` foreign key.
+4. [`supabase/migrations/004_event_users_extended.sql`](./supabase/migrations/004_event_users_extended.sql) — adds `user_status` and `member_type` columns to `event_users` (with safe `DEFAULT 'active'` / `'internal'` and a `CHECK` constraint, so existing rows are back-filled automatically).
 
 > **Storage:** the migrations also create a public `event-images` storage bucket. If you skip the migration for some reason, you must create the bucket manually so event cover uploads work.
 
@@ -263,7 +280,22 @@ A [`useMobileNav()`](./presentation/composables/useMobileNav.ts) composable owns
 
 The admin's email pill in the drawer uses `min-w-0` on the flex parent and `truncate min-w-0 flex-1` on the email `<span>`, plus `shrink-0` on the leading icon. Without those, Tailwind's `truncate` utility does nothing inside a flex child — long emails overflow horizontally on narrow viewports.
 
-### 7. Default cover image for events without one
+### 7. Master user gets a status + member type
+
+`event_users` is the central table backing the autofill on the public booking form, so we cannot afford to break existing rows when evolving it. Migration [`004_event_users_extended.sql`](./supabase/migrations/004_event_users_extended.sql) adds two new columns with a safe `DEFAULT` and a `CHECK` constraint:
+
+- `user_status TEXT NOT NULL DEFAULT 'active' CHECK (user_status IN ('active', 'inactive', 'banned'))`
+- `member_type TEXT NOT NULL DEFAULT 'internal' CHECK (member_type IN ('internal', 'external'))`
+
+Both are **indexed** (`idx_event_users_user_status`, `idx_event_users_member_type`) so the master-user list filter stays fast as the table grows. The application layer mirrors the defaults in [`RegisterUser`](./application/use-cases/register-user.ts) and the Add/Edit modals, so the database `DEFAULT` and the form initial value are never out of sync. Deleting a user cascades to `event_registrations` (existing `ON DELETE CASCADE` from migration 002), which also lets the cascade-delete confirmation modal on the master-user list page stay simple.
+
+### 8. Per-category attendance on the user detail page
+
+The user detail page (`/dashboard/users/[id]`) has a "Tingkat Kehadiran per Kategori" section that aggregates `event_registrations` per `event.category_id` and computes `attendanceRate` for each group. The repository pulls the raw rows in a single query with a join to `events` + `event_categories`, then aggregates in the application layer — this avoids a server-side Postgres function while still keeping the round-trip count to one.
+
+A year filter pill row sits at the top of the section. The list of available years comes from `getRegistrationYears(userId)`, which groups `event.date` by year and sorts descending. The default selected year is the most recent one. Events without a category are grouped under `(null, 'Tanpa Kategori')` so they still show up in the breakdown.
+
+### 9. Default cover image for events without one
 
 Cover image upload is **optional** when an admin creates an event. To make sure the public home page, event detail page, and dashboard lists never render a broken `<img>` for events that don't have a cover, the [`utils/event-image.ts`](./utils/event-image.ts) helper resolves a single fallback URL at render time.
 

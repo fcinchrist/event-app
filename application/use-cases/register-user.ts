@@ -7,16 +7,33 @@ export class RegisterUser {
 
   /**
    * Buat user baru. Input noHp akan dinormalisasi dulu.
-   * Melempar Error kalau noHp tidak valid atau sudah dipakai.
+   *
+   * Default: `userStatus = 'active'` dan `memberType = 'internal'`
+   * untuk seluruh alur pendaftaran publik — sesuai DEFAULT di
+   * migration 004. Caller boleh override dengan mengirim input
+   * yang sudah lengkap (mis. admin membuat user baru dari dashboard).
+   *
+   * Melempar Error kalau noHp tidak valid, nama kosong, atau noHp
+   * sudah dipakai user lain.
    */
   async execute(input: EventUserFormData): Promise<EventUser> {
     const noHp = normalizePhone(input.noHp)
     if (!noHp) {
       throw new Error('Nomor HP tidak valid.')
     }
-    if (!input.nama || input.nama.trim().length < 2) {
+    const nama = input.nama?.trim() ?? ''
+    if (nama.length < 2) {
       throw new Error('Nama minimal 2 karakter.')
     }
-    return this.userRepository.create({ noHp, nama: input.nama.trim() })
+    return this.userRepository.create({
+      noHp,
+      nama,
+      // Fall back to safe defaults. Memastikan baris baru selalu punya
+      // status aktif + tipe internal, sehingga konsistensi dengan
+      // DEFAULT migration 004 terjaga walau caller tidak mengirim
+      // field ini (mis. form booking publik).
+      userStatus: input.userStatus ?? 'active',
+      memberType: input.memberType ?? 'internal',
+    })
   }
 }

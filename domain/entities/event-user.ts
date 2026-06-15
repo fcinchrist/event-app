@@ -9,15 +9,61 @@
  * noHp disimpan dalam format ternormalisasi '08123456789' (digit only,
  * selalu diawali '0' untuk konsistensi pencarian).
  */
+
+/**
+ * Status akun master user.
+ *  - active   : boleh digunakan normal (default, sesuai DEFAULT di migration 004)
+ *  - inactive : akun di-nonaktifkan (mis. user pindah / berhenti hadir)
+ *  - banned   : akun diblokir (mis. melakukan pelanggaran)
+ */
+export type UserStatus = 'active' | 'inactive' | 'banned'
+
+/**
+ * Tipe keanggotaan user.
+ *  - internal : anggota internal komunitas (default, sesuai DEFAULT di migration 004)
+ *  - external : peserta umum / di luar komunitas
+ */
+export type MemberType = 'internal' | 'external'
+
+/**
+ * Label Indonesia untuk setiap nilai UserStatus / MemberType.
+ * Dipakai oleh badge dan dropdown di UI admin.
+ */
+export const USER_STATUS_LABELS: Record<UserStatus, string> = {
+  active: 'Aktif',
+  inactive: 'Nonaktif',
+  banned: 'Diblokir',
+}
+
+export const MEMBER_TYPE_LABELS: Record<MemberType, string> = {
+  internal: 'Internal',
+  external: 'Eksternal',
+}
+
 export interface EventUser {
   id: string
   noHp: string
   nama: string
+  userStatus: UserStatus
+  memberType: MemberType
   createdAt: string
   updatedAt: string
 }
 
+/**
+ * Data yang dikirim caller untuk membuat / memperbarui user.
+ *
+ * `userStatus` dan `memberType` dibuat OPSIONAL di level form data
+ * karena alur publik (form booking di [`BookEvent`](application/use-cases/book-event.ts:70))
+ * tidak знает status keanggotaan user. Kalau caller tidak mengirim,
+ * [`RegisterUser`](application/use-cases/register-user.ts:19) akan
+ * mengisi default `active` + `internal` (sesuai DEFAULT migration 004)
+ * dan [`SupabaseUserRepository.update`](infrastructure/repositories/supabase-user-repository.ts:101)
+ * akan mengabaikan field yang tidak dikirim.
+ */
 export interface EventUserFormData {
   noHp: string
   nama: string
+  userStatus?: UserStatus
+  memberType?: MemberType
 }
