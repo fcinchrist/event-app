@@ -5,6 +5,7 @@ import type {
   Registration,
   RegistrationWithUser,
 } from '~/domain/entities/registration'
+import { SupabaseEventRepository } from '~/infrastructure/repositories/supabase-event-repository'
 import { SupabaseRegistrationRepository } from '~/infrastructure/repositories/supabase-registration-repository'
 import { SupabaseUserRepository } from '~/infrastructure/repositories/supabase-user-repository'
 import { FindUserByPhone } from '~/application/use-cases/find-user-by-phone'
@@ -133,10 +134,11 @@ export const useRegistrationStore = defineStore('registration', {
     /**
      * Submit booking publik. Melakukan:
      *   1. Normalisasi no HP
-     *   2. Cari / buat user master
-     *   3. Cek duplikat (userId, eventId)
-     *   4. Insert registrasi
-     *   5. Refresh list peserta di cache untuk event tersebut
+     *   2. Validasi event (ada, status Aktif, tanggal belum lewat)
+     *   3. Cari / buat user master
+     *   4. Cek duplikat (userId, eventId)
+     *   5. Insert registrasi
+     *   6. Refresh list peserta di cache untuk event tersebut
      *
      * Return null kalau sukses, atau string error kalau gagal
      * (dipakai form untuk tampilkan Alert / inline error).
@@ -151,7 +153,8 @@ export const useRegistrationStore = defineStore('registration', {
       try {
         const userRepo = new SupabaseUserRepository()
         const regRepo = new SupabaseRegistrationRepository()
-        const useCase = new BookEvent(userRepo, regRepo)
+        const eventRepo = new SupabaseEventRepository()
+        const useCase = new BookEvent(userRepo, regRepo, eventRepo)
         await useCase.execute(input)
         // Refresh cache peserta untuk event ini
         await this.fetchParticipants(input.eventId)

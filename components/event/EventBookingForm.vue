@@ -6,6 +6,22 @@ import { normalizePhone } from '~/application/use-cases/normalize-phone'
 const appStore = useAppStore()
 const regStore = useRegistrationStore()
 
+// Flag "sekarang" agar konsisten dipakai bersama antara UI & handler.
+// Saat hari berganti (mis. user buka halaman melewati tengah malam),
+// computed isPast akan ikut re-evaluasi dan UI terupdate otomatis.
+const now = ref(new Date())
+let nowTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  // Tick tiap 1 menit cukup: granularity pembanding di sini YYYY-MM-DD,
+  // tapi interval ini juga menjaga konsistensi kalau tab idle lama.
+  nowTimer = setInterval(() => {
+    now.value = new Date()
+  }, 60_000)
+})
+onBeforeUnmount(() => {
+  if (nowTimer) clearInterval(nowTimer)
+})
+
 // Form state lokal (tidak masuk ke global store)
 const noHp = ref('')
 const nama = ref('')
@@ -53,6 +69,21 @@ async function handleSubmit(): Promise<void> {
 
   if (!appStore.selectedEvent) return
 
+  // Guard client-side untuk UX: kalau event sudah lewat / ditutup,
+  // jangan kirim request. Validasi akhir tetap ada di server (use case).
+  if (isPast.value) {
+    inlineError.value = 'Maaf, event ini sudah lewat dan tidak bisa di-booking lagi.'
+    return
+  }
+  if (isClosed.value) {
+    inlineError.value = 'Maaf, event ini sudah ditutup atau dibatalkan.'
+    return
+  }
+  if (isFull.value) {
+    inlineError.value = 'Pendaftaran ditutup karena kuota sudah penuh.'
+    return
+  }
+
   const phoneTrim = noHp.value.trim()
   if (!phoneTrim) {
     inlineError.value = 'Nomor WhatsApp wajib diisi.'
@@ -88,6 +119,32 @@ const isFull = computed(() => {
   if (!appStore.selectedEvent) return false
   return slotsTaken.value >= appStore.selectedEvent.quota
 })
+
+/**
+ * True kalau tanggal event sudah lewat dari hari ini (level hari, YYYY-MM-DD).
+ * Dipakai untuk disable form & tampilkan banner "sudah lewat" sebelum user
+ * mencoba submit. Validasi authoritative tetap ada di BookEvent use case
+ * untuk mencegah bypass dari client.
+ */
+const isPast = computed(() => {
+  if (!appStore.selectedEvent?.date) return false
+  const todayStr = now.value.toISOString().slice(0, 10)
+  const eventStr = appStore.selectedEvent.date.slice(0, 10)
+  return eventStr < todayStr
+})
+
+/**
+ * True kalau event ber-status Dibatalkan atau Selesai. Dipakai untuk
+ * disable form & tampilkan banner agar user tidak salah input.
+ */
+const isClosed = computed(() => {
+  const status = appStore.selectedEvent?.status
+  return status === 'Dibatalkan' || status === 'Selesai'
+})
+
+const isBookingDisabled = computed(() => {
+  return isFull.value || isPast.value || isClosed.value
+})
 </script>
 
 <template>
@@ -116,7 +173,8 @@ const isFull = computed(() => {
       />
     </div>
 
-    <!-- Full warning -->
+    <!-- Past / closed warnings: tampil paralel di atas form, masing-masing
+         hanya kalau relevan. Full + Past + Closed dicek independent. -->
     <div
       v-if="isFull"
       class="bg-rose-50 border border-rose-100 text-rose-800 p-3.5 rounded-xl text-xs flex gap-2"
@@ -124,8 +182,22 @@ const isFull = computed(() => {
       <i class="fa-solid fa-circle-exclamation text-base text-rose-500 shrink-0" />
       <p class="font-medium">Pendaftaran ditutup karena kuota batas maksimum room sudah penuh terisi.</p>
     </div>
+    <div
+      v-if="isPast"
+      class="bg-slate-50 border border-slate-200 text-slate-700 p-3.5 rounded-xl text-xs flex gap-2"
+    >
+      <i class="fa-solid fa-calendar-xmark text-base text-slate-500 shrink-0" />
+      <p class="font-medium">Event ini sudah lewat. Pendaftaran telah ditutup dan tidak dapat diproses.</p>
+    </div>
+    <div
+      v-if="isClosed"
+      class="bg-amber-50 border border-amber-100 text-amber-800 p-3.5 rounded-xl text-xs flex gap-2"
+    >
+      <i class="fa-solid fa-ban text-base text-amber-500 shrink-0" />
+      <p class="font-medium">Event ini sudah dibatalkan atau ditutup oleh panitia.</p>
+    </div>
 
-    <div v-else class="space-y-3.5">
+    <div v-if="!isBookingDisabled" class="space-y-3.5">
       <div>
         <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Nomor WhatsApp</label>
         <input
@@ -174,7 +246,7 @@ const isFull = computed(() => {
       <button
         type="button"
         class="w-full mt-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-        :disabled="regStore.isSubmittingBooking"
+        :disabled="regStore.isSubmittingBooking || isBookingDisabled"
         @click="handleSubmit"
       >
         <i
@@ -182,7 +254,15 @@ const isFull = computed(() => {
           class="fa-solid fa-paper-plane text-xs"
         />
         <i v-else class="fa-solid fa-spinner fa-spin text-xs" />
-        {{ regStore.isSubmittingBooking ? 'Memproses...' : 'Booking Sekarang' }}
+        {{
+          regStore.isSubmittingBooking
+            ? 'Memproses...'
+            : isPast
+              ? 'Pendaftaran Ditutup'
+              : isClosed
+                ? 'Event Ditutup'
+                : 'Booking Sekarang'
+        }}
       </button>
     </div>
   </div>
