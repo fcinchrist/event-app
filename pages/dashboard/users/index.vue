@@ -13,7 +13,6 @@ const store = useUserStore()
 const config = useRuntimeConfig()
 const router = useRouter()
 
-// Daftar menu navigasi dashboard. URL masing-masing sudah terpisah.
 const NAV_ITEMS = [
   { key: 'ringkasan', label: 'Ringkasan Dashboard', icon: 'fa-solid fa-chart-line', to: '/dashboard' },
   { key: 'manage', label: 'Kelola Event', icon: 'fa-solid fa-list-check', to: '/dashboard/events' },
@@ -23,9 +22,9 @@ const NAV_ITEMS = [
 const searchQuery = ref('')
 const registrationRepository = new SupabaseRegistrationRepository()
 
-// Peta userId -> total registrasi (untuk kolom "Total Event").
-// Di-load paralel setelah list user datang agar tidak menggandakan
-// round-trip Supabase.
+// userId -> registration count (for the "Total Event" column).
+// Hydrated in parallel after the user list arrives to avoid an extra
+// Supabase round-trip.
 const registrationCountByUser = ref<Record<string, number>>({})
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null
@@ -43,17 +42,13 @@ function changePage(page: number): void {
 }
 
 async function hydrateCounts(): Promise<void> {
-  // Reset dulu untuk user yang hilang dari halaman ini.
+  // Drop entries for users that are no longer on the current page.
   const ids = store.users.map((u) => u.id)
   for (const key of Object.keys(registrationCountByUser.value)) {
     if (!ids.includes(key)) {
       delete registrationCountByUser.value[key]
     }
   }
-  // Fetch paralel count via aggregate (pakai repo method, tapi karena
-  // tidak ada dedicated getCountByUser, kita pakai getAll per user
-  // untuk halaman ini. Untuk skala 9 user/halaman = 9x round-trip,
-  // masih acceptable; jika scale naik, tambahkan method RPC.
   await Promise.all(
     ids.map(async (id) => {
       if (typeof registrationCountByUser.value[id] === 'number') return
@@ -111,7 +106,7 @@ onMounted(async () => {
 <template>
   <DashboardShell :items="NAV_ITEMS" section-label="Panel Operasional">
     <section class="space-y-5">
-      <!-- ============ Header Halaman ============ -->
+      <!-- ============ Page Header ============ -->
       <header class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
           <div class="flex items-center gap-2 mb-1">
@@ -151,7 +146,7 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- ============ Tabel Master User ============ -->
+      <!-- ============ Master User Table ============ -->
       <DashboardUsersTableSkeleton v-if="store.isLoadingList" :rows="store.perPage" />
 
       <div
@@ -180,7 +175,7 @@ onMounted(async () => {
         v-else
         class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
       >
-        <!-- Header tabel (desktop only) -->
+        <!-- Header row (desktop only) -->
         <div class="hidden md:grid grid-cols-12 gap-3 px-5 py-3 bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
           <div class="col-span-4">User</div>
           <div class="col-span-3">No HP</div>
@@ -198,7 +193,7 @@ onMounted(async () => {
             class="w-full text-left px-5 py-3 grid grid-cols-12 gap-3 items-center hover:bg-emerald-50/40 transition-colors"
             @click="goToDetail(user.id)"
           >
-            <!-- User: avatar + nama + id -->
+            <!-- User: avatar + name + id -->
             <div class="col-span-4 flex items-center gap-3 min-w-0">
               <div
                 :class="[
@@ -217,25 +212,25 @@ onMounted(async () => {
                 </p>
               </div>
             </div>
-            <!-- No HP (unmasked untuk admin) -->
+            <!-- Phone (unmasked for admin) -->
             <div class="col-span-3 min-w-0">
               <p class="text-xs text-slate-700 font-mono truncate flex items-center gap-1.5">
                 <i class="fa-brands fa-whatsapp text-emerald-500 shrink-0" />
                 <span class="truncate">{{ user.noHp }}</span>
               </p>
             </div>
-            <!-- Total event -->
+            <!-- Event count -->
             <div class="col-span-2 flex justify-center">
               <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-extrabold border border-indigo-100">
                 <i class="fa-solid fa-calendar-check text-[10px]" />
                 {{ registrationCountByUser[user.id] ?? '…' }}
               </span>
             </div>
-            <!-- Tanggal terdaftar -->
+            <!-- Registered date -->
             <div class="col-span-2 text-xs text-slate-700">
               {{ formatCreated(user.createdAt) }}
             </div>
-            <!-- Aksi -->
+            <!-- Action -->
             <div class="col-span-1 flex items-center justify-end">
               <span class="text-[10px] font-extrabold text-emerald-700 inline-flex items-center gap-1">
                 Detail <i class="fa-solid fa-arrow-right text-[9px]" />

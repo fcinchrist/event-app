@@ -1,15 +1,8 @@
 <script setup lang="ts">
 /**
- * UsersTableSkeleton — placeholder tabel Master User.
- *
- * Mengikuti layout aktual tabel di pages/dashboard/users/index.vue:
- * - Header tabel (5 kolom, hidden di mobile)
- * - Rows: avatar + nama + no HP + daftar event count + daftar event terakhir
- *         + aksi "Detail"
- *
- * Props:
- * - rows: jumlah baris skeleton (default 5)
- * - showHeader: tampilkan header tabel (default true)
+ * Loading skeleton for the Master User table. Mirrors the real
+ * table layout: header row (desktop only) plus avatar + name + phone
+ * + event count + registered date + action cells.
  */
 interface Props {
   rows?: number
@@ -24,7 +17,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 <template>
   <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-    <!-- Header tabel (desktop only) -->
+    <!-- Header row (desktop only) -->
     <div
       v-if="props.showHeader"
       class="hidden md:grid grid-cols-12 gap-3 px-5 py-3 bg-slate-50 border-b border-slate-200"
@@ -43,7 +36,7 @@ const props = withDefaults(defineProps<Props>(), {
         :key="`d-${i}`"
         class="px-5 py-3 grid grid-cols-12 gap-3 items-center"
       >
-        <!-- User: avatar + nama + id -->
+        <!-- User: avatar + name + id -->
         <div class="col-span-4 flex items-center gap-3 min-w-0">
           <UiSkeletonBlock variant="circle" width="w-10" height="h-10" />
           <div class="flex-grow space-y-2 min-w-0">
@@ -51,20 +44,20 @@ const props = withDefaults(defineProps<Props>(), {
             <UiSkeletonBlock variant="bar" width="w-1/3" height="h-2.5" />
           </div>
         </div>
-        <!-- No HP -->
+        <!-- Phone -->
         <div class="col-span-3">
           <UiSkeletonBlock variant="bar" width="w-2/3" height="h-3" />
         </div>
-        <!-- Total event -->
+        <!-- Event count -->
         <div class="col-span-2 flex justify-center">
           <UiSkeletonBlock variant="block" width="w-10" height="h-6" rounded="rounded-lg" />
         </div>
-        <!-- Daftar event -->
+        <!-- Registered date -->
         <div class="col-span-2 space-y-1.5">
           <UiSkeletonBlock variant="bar" width="w-5/6" height="h-3" />
           <UiSkeletonBlock variant="bar" width="w-1/2" height="h-2.5" />
         </div>
-        <!-- Aksi -->
+        <!-- Action -->
         <div class="col-span-1 flex items-center justify-end">
           <UiSkeletonBlock variant="block" width="w-20" height="h-7" rounded="rounded-lg" />
         </div>

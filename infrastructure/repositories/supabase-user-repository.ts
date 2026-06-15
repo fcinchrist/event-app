@@ -9,8 +9,8 @@ import { useSupabaseClient } from '~/infrastructure/supabase/client'
 import { tryMapUserRow, mapUserRow } from '~/infrastructure/mappers/user-mapper'
 import { generateUniqueId } from '~/application/use-cases/generate-id'
 
-// Cap yang sama dengan event list, supaya query konsisten dan
-// tidak membebani Supabase ketika ada lonjakan user terdaftar.
+// Same cap as the event list to keep queries consistent and protect
+// Supabase from registration spikes.
 const MAX_USER_LIMIT = 100
 
 export class SupabaseUserRepository implements UserRepository {
@@ -45,7 +45,7 @@ export class SupabaseUserRepository implements UserRepository {
   async create(input: EventUserFormData): Promise<EventUser> {
     const supabase = useSupabaseClient()
 
-    // Generate ID 'USR-YYYY-NNNNN' dengan retry sampai unik
+    // Generate 'USR-YYYY-NNNNN' with retry until unique.
     const id = await generateUniqueId('USR', async (candidate) => {
       const { data } = await supabase
         .from('event_users')
@@ -66,7 +66,7 @@ export class SupabaseUserRepository implements UserRepository {
       .single()
 
     if (error) {
-      // 23505 = unique_violation (no_hp duplikat)
+      // 23505 = unique_violation (duplicate no_hp)
       if (error.code === '23505') {
         throw new Error('Nomor HP ini sudah terdaftar di sistem.')
       }
@@ -78,9 +78,8 @@ export class SupabaseUserRepository implements UserRepository {
   async getStats(id: string): Promise<UserStats> {
     const supabase = useSupabaseClient()
 
-    // 1 query dengan filter + count 'exact' (count dengan where clause)
-    // Hanya registrasi yang status-nya 'Terdaftar' atau 'Hadir' yang dihitung
-    // (exclude 'Tidak Hadir' supaya "pernah daftar berapa" akurat)
+    // totalRegistered counts every row (any status) so the
+    // "how many events has this user ever joined" number stays accurate.
     const { count: totalRegistered, error: err1 } = await supabase
       .from('event_registrations')
       .select('id', { count: 'exact', head: true })
@@ -107,11 +106,10 @@ export class SupabaseUserRepository implements UserRepository {
   }
 
   /**
-   * List user dengan pagination + search server-side.
-   *
-   * - `order('created_at', { ascending: false })` → user terbaru di atas.
-   * - Search: ILIKE ke `nama` ATAU `no_hp`.
-   * - Return `count: 'exact'` untuk akurasi pagination meta.
+   * Lists users with server-side pagination + search.
+   * - `order('created_at', { ascending: false })` puts newest users first.
+   * - Search uses ILIKE on `nama` OR `no_hp`.
+   * - `count: 'exact'` is required for accurate pagination meta.
    */
   async listUsers(params: UserListParams): Promise<PaginatedResult<EventUser>> {
     const supabase = useSupabaseClient()
@@ -128,8 +126,6 @@ export class SupabaseUserRepository implements UserRepository {
 
     if (params.search && params.search.trim()) {
       const term = params.search.trim()
-      // Escape kutip / wildcard PostgREST jika perlu di masa depan.
-      // Saat ini pola %term% cukup untuk use case admin search.
       query = query.or(`nama.ilike.%${term}%,no_hp.ilike.%${term}%`)
     }
 

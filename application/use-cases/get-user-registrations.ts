@@ -2,11 +2,9 @@ import type { RegistrationWithEvent } from '~/domain/entities/registration'
 import type { RegistrationRepository } from '~/domain/repositories/registration-repository'
 
 /**
- * Ambil seluruh event yang pernah diikuti seorang user, dengan
- * data event ter-hydrate (judul, tanggal, lokasi, status, dll).
- * Dipakai di halaman detail Master User.
- *
- * Hasil sudah diurutkan: event terbaru lebih dulu.
+ * Loads every event a user has ever registered for, with the event
+ * data hydrated (title, date, location, status, etc.). Result is
+ * pre-sorted with the newest event first.
  */
 export class GetUserRegistrations {
   constructor(

@@ -14,13 +14,13 @@ import { ListUsers } from '~/application/use-cases/list-users'
 import { GetUserRegistrations } from '~/application/use-cases/get-user-registrations'
 
 interface UserState {
-  // Daftar user (master list)
+  // Master user list
   users: EventUser[]
   totalUsers: number
   isLoadingList: boolean
   listError: string | null
 
-  // Detail user
+  // Selected user detail
   selectedUser: EventUser | null
   selectedUserStats: UserStats | null
   selectedUserRegistrations: RegistrationWithEvent[]
@@ -42,14 +42,7 @@ const getUserRegistrationsUseCase = new GetUserRegistrations(
   registrationRepository,
 )
 
-/**
- * Store khusus halaman Master User (admin). Mengelola:
- * - List user + pagination + search
- * - Detail user (profile + stats + event yang pernah diikuti)
- *
- * Di-instansiasi per-store Pinia (tidak singleton global) sehingga
- * halaman detail tidak saling menabrak state.
- */
+/** Pinia store for the admin Master User pages: list with pagination/search and per-user detail (profile + stats + joined events). */
 export const useUserStore = defineStore('user', {
   state: (): UserState => ({
     users: [],
@@ -123,10 +116,7 @@ export const useUserStore = defineStore('user', {
       this.detailError = null
     },
 
-    /**
-     * Load 1 user lengkap dengan stats + list event. Dipakai oleh
-     * halaman detail Master User.
-     */
+    /** Loads a single user with stats + their registered events. */
     async fetchUserDetail(userId: string): Promise<void> {
       this.isLoadingDetail = true
       this.detailError = null

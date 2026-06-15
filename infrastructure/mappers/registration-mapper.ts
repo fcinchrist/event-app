@@ -12,8 +12,8 @@ import { mapEventRow, type EventRow } from '~/infrastructure/mappers/event-mappe
 import type { RegistrationStatus } from '~/domain/entities/registration'
 
 /**
- * Representasi baris mentah dari tabel `public.event_registrations`.
- * Bisa punya field nested `user: UserRow` (JOIN `event_users`) dan/atau
+ * Raw row shape returned from `public.event_registrations`. May
+ * include nested `user: UserRow` (JOIN `event_users`) and/or
  * `event: EventRow` (JOIN `events`).
  */
 export interface RegistrationRow {
@@ -45,10 +45,7 @@ function normalizeStatus(value: unknown): RegistrationStatus {
   return REGISTRATION_STATUS_VALUES[0]
 }
 
-/**
- * Map baris Supabase → domain Registration (snake_case → camelCase).
- * Baris yang tidak valid akan melempar Error.
- */
+/** Maps a Supabase row → domain Registration (snake_case → camelCase). Throws on invalid rows. */
 export function mapRegistrationRow(row: unknown): Registration {
   if (!isRegistrationRow(row)) {
     throw new Error('Invalid registration row shape returned from Supabase.')
@@ -63,10 +60,7 @@ export function mapRegistrationRow(row: unknown): Registration {
   }
 }
 
-/**
- * Map baris dengan JOIN user → RegistrationWithUser. Baris yang
- * tidak punya `user` ter-hydrate akan melempar Error.
- */
+/** Maps a row with the user JOIN → RegistrationWithUser. Throws when `user` is not hydrated. */
 export function mapRegistrationWithUserRow(
   row: unknown,
 ): RegistrationWithUser {
@@ -94,13 +88,7 @@ export function tryMapRegistrationWithUserRow(
   return mapRegistrationWithUserRow(row)
 }
 
-/**
- * Map baris dengan JOIN event → RegistrationWithEvent. Baris yang
- * tidak punya `event` ter-hydrate akan melempar Error.
- *
- * Dipakai oleh halaman Master User → detail user untuk menampilkan
- * event yang pernah diikuti user.
- */
+/** Maps a row with the event JOIN → RegistrationWithEvent. Throws when `event` is not hydrated. */
 export function mapRegistrationWithEventRow(
   row: unknown,
 ): RegistrationWithEvent {

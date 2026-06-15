@@ -17,12 +17,7 @@ import {
 } from '~/infrastructure/mappers/registration-mapper'
 import { generateUniqueId } from '~/application/use-cases/generate-id'
 
-/**
- * Cap jumlah baris yang boleh di-load untuk relasi one-to-many
- * milik user (list event yang diikuti). 100 event historis per
- * user sudah lebih dari cukup untuk Master User; jika di atas
- * itu diasumsikan anomali data.
- */
+/** Cap for the "events followed by a user" panel. 100 historical events per user is well beyond what the master user view ever needs. */
 const MAX_REGISTRATIONS_PER_USER = 100
 
 export class SupabaseRegistrationRepository implements RegistrationRepository {
@@ -181,10 +176,8 @@ export class SupabaseRegistrationRepository implements RegistrationRepository {
   ): Promise<RegistrationWithEvent[]> {
     const supabase = useSupabaseClient()
 
-    // Embed event via PostgREST FK `event:events(*)`. Sortir event
-    // tidak bisa dilakukan langsung di level root (PostgREST hanya
-    // mengurutkan kolom pada tabel utama), sehingga kita pull raw
-    // dan sortir manual di JS dengan fallback `registered_at`.
+    // PostgREST cannot order embedded relations, so we sort manually
+    // by `event.date` desc with `registered_at` as tie-breaker.
     const { data, error } = await supabase
       .from('event_registrations')
       .select('*, event:events(*)')
@@ -200,7 +193,6 @@ export class SupabaseRegistrationRepository implements RegistrationRepository {
       .map((r) => tryMapRegistrationWithEventRow(r))
       .filter((r): r is RegistrationWithEvent => r !== null)
 
-    // Sort: event.date desc, lalu registered_at desc (tie-breaker).
     mapped.sort((a, b) => {
       const dateA = new Date(a.event.date).getTime()
       const dateB = new Date(b.event.date).getTime()

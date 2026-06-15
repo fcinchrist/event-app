@@ -6,12 +6,9 @@ import type {
 import type { PaginatedResult } from '~/types/pagination'
 
 /**
- * Use case: list user master dengan pagination + search.
- *
- * Mengikuti pola `GetEvents`:
- * - Page di-clamp minimal 1
- * - Limit di-clamp 1..MAX (saat ini 100, sama dengan repo)
- * - Search & pagination di-forward apa adanya ke repository
+ * Use case: list master users with pagination + search.
+ * - Clamps `page` to a minimum of 1.
+ * - Clamps `limit` to 1..100 (matches the repository cap).
  */
 export class ListUsers {
   constructor(private readonly userRepository: UserRepository) {}

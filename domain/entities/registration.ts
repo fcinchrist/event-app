@@ -2,12 +2,12 @@ import type { EventUser } from '~/domain/entities/event-user'
 import type { Event } from '~/domain/entities/event'
 
 /**
- * Status lifecycle sebuah registrasi (1 baris = 1 user × 1 event):
- * - 'Terdaftar'   : user sudah submit form, belum check-in
- * - 'Hadir'       : panitia menandai user sudah check-in di lokasi
- * - 'Tidak Hadir' : panitia menandai user tidak hadir saat acara
+ * Lifecycle of a single registration (1 row = 1 user × 1 event):
+ * - 'Terdaftar'    : user submitted the form, not yet checked in.
+ * - 'Hadir'        : organizer marked the user as checked in on site.
+ * - 'Tidak Hadir'  : organizer marked the user as a no-show.
  *
- * Status kehadiran di-toggle manual oleh admin lewat dashboard.
+ * Status transitions are toggled manually by the admin via the dashboard.
  */
 export type RegistrationStatus = 'Terdaftar' | 'Hadir' | 'Tidak Hadir'
 
@@ -38,9 +38,9 @@ export interface RegistrationWithUser extends Registration {
 }
 
 /**
- * Hasil join registrasi dengan event (untuk halaman "event yang
- * diikuti user" di master user). Relasi event di-load via PostgREST
- * embed `event:events(*)`.
+ * Registration joined with its event (used by the "events followed
+ * by this user" panel on the master user detail page). The `event`
+ * relation is loaded via the PostgREST embed `event:events(*)`.
  */
 export interface RegistrationWithEvent extends Registration {
   event: Event

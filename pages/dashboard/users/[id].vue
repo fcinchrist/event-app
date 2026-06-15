@@ -97,7 +97,7 @@ function avatarColor(seed: string): string {
 }
 
 function openWhatsAppLink(phone: string): string {
-  // Asumsi noHp sudah leading '0'. Untuk wa.me butuh '62…'.
+  // Stored numbers are Indonesian (leading '0'); wa.me requires '62…'.
   const trimmed = phone.replace(/\D/g, '')
   const international = trimmed.startsWith('0') ? `62${trimmed.slice(1)}` : trimmed
   return `https://wa.me/${international}`
@@ -126,7 +126,7 @@ onBeforeUnmount(() => {
 <template>
   <DashboardShell :items="NAV_ITEMS" section-label="Panel Operasional">
     <section class="space-y-5">
-      <!-- ============ Header + Back ============ -->
+      <!-- ============ Header + Back Link ============ -->
       <header class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
         <div>
           <NuxtLink
@@ -253,7 +253,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <!-- ============ Daftar Event ============ -->
+        <!-- ============ Registered Events List ============ -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="px-5 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
             <div>
