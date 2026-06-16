@@ -1,4 +1,7 @@
 import type { AuthRepository } from '~/domain/repositories/auth-repository'
+import { createLogger } from '~/utils/logger'
+
+const log = createLogger('use-case:update-password')
 
 export interface UpdatePasswordResult {
   success: boolean
@@ -26,6 +29,7 @@ export class UpdatePassword {
       return { success: true, error: null }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Gagal memperbarui password.'
+      log.error('Password update failed', err)
       return { success: false, error: message }
     }
   }

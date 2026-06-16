@@ -18,6 +18,9 @@ import { UploadEventImage } from '~/application/use-cases/upload-event-image'
 import { UpdateEventStatus } from '~/application/use-cases/update-event-status'
 import { GetAttendanceByPeriod } from '~/application/use-cases/get-attendance-by-period'
 import { GetRegistrationsByPeriod } from '~/application/use-cases/get-registrations-by-period'
+import { createLogger } from '~/utils/logger'
+
+const log = createLogger('dashboard-store')
 
 const EMPTY_RESULT: PaginatedResult<Event> = {
   data: [],
@@ -131,6 +134,7 @@ export const useDashboardStore = defineStore('dashboard', {
         this.events = result.data
         this.pagination = result.meta
       } catch (err: unknown) {
+        log.error('Store action failed', err, { action: 'fetchEvents' })
         const message = err instanceof Error ? err.message : 'Gagal memuat event.'
         this.error = message
       } finally {
@@ -147,6 +151,7 @@ export const useDashboardStore = defineStore('dashboard', {
         this.selectedEvent = event
         return event
       } catch (err: unknown) {
+        log.error('Store action failed', err, { action: 'fetchEventById' })
         const message = err instanceof Error ? err.message : 'Gagal memuat detail event.'
         this.error = message
         return null
@@ -165,6 +170,7 @@ export const useDashboardStore = defineStore('dashboard', {
         this.page = 1
         return { success: true, error: null, event }
       } catch (err: unknown) {
+        log.error('Store action failed', err, { action: 'createEvent' })
         const message = err instanceof Error ? err.message : 'Gagal membuat event.'
         this.error = message
         return { success: false, error: message, event: null }
@@ -185,6 +191,7 @@ export const useDashboardStore = defineStore('dashboard', {
         if (this.selectedEvent?.id === id) this.selectedEvent = event
         return { success: true, error: null, event }
       } catch (err: unknown) {
+        log.error('Store action failed', err, { action: 'updateEvent' })
         const message = err instanceof Error ? err.message : 'Gagal memperbarui event.'
         this.error = message
         return { success: false, error: message, event: null }
@@ -203,6 +210,7 @@ export const useDashboardStore = defineStore('dashboard', {
         if (this.selectedEvent?.id === id) this.selectedEvent = null
         return { success: true, error: null }
       } catch (err: unknown) {
+        log.error('Store action failed', err, { action: 'deleteEvent' })
         const message = err instanceof Error ? err.message : 'Gagal menghapus event.'
         this.error = message
         return { success: false, error: message }
@@ -217,6 +225,7 @@ export const useDashboardStore = defineStore('dashboard', {
         const url = await useCase.execute(file)
         return { success: true, error: null, url }
       } catch (err: unknown) {
+        log.error('Store action failed', err, { action: 'uploadImage' })
         const message = err instanceof Error ? err.message : 'Gagal mengupload gambar.'
         this.error = message
         return { success: false, error: message, url: null }
@@ -235,6 +244,7 @@ export const useDashboardStore = defineStore('dashboard', {
         if (this.selectedEvent?.id === id) this.selectedEvent = event
         return { success: true, error: null, event }
       } catch (err: unknown) {
+        log.error('Store action failed', err, { action: 'updateEventStatus' })
         const message = err instanceof Error ? err.message : 'Gagal memperbarui status event.'
         this.error = message
         return { success: false, error: message, event: null }
@@ -298,6 +308,7 @@ export const useDashboardStore = defineStore('dashboard', {
         const list = await useCase.execute(toAttendancePeriod(this.period))
         this.attendanceSummaries = list
       } catch (err: unknown) {
+        log.error('Store action failed', err, { action: 'fetchAttendance' })
         const message = err instanceof Error ? err.message : 'Gagal memuat data kehadiran.'
         this.error = message
         // Keep previous data on error to avoid empty flash.
@@ -338,6 +349,7 @@ export const useDashboardStore = defineStore('dashboard', {
         events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
         this.periodEvents = events
       } catch (err: unknown) {
+        log.error('Store action failed', err, { action: 'fetchRegistrationsByPeriod' })
         const message = err instanceof Error ? err.message : 'Gagal memuat data registrasi.'
         this.error = message
         // Keep previous data on error to avoid empty flash.

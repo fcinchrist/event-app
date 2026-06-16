@@ -3,6 +3,7 @@ import { useNuxtApp } from '#imports'
 import { createBrowserClient, type CookieMethodsBrowser } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useRuntimeConfig } from '#imports'
+import { createLogger } from '~/utils/logger'
 
 /**
  * Plugin client-side: membuat Supabase client yang membaca/menulis
@@ -17,6 +18,8 @@ import { useRuntimeConfig } from '#imports'
  * Solusi: simpan instance di `nuxtApp` lewat `provide('supabase', ...)`.
  * `nuxtApp` tidak ikut ter-serialize, hanya tersedia saat runtime.
  */
+const log = createLogger('supabase-client')
+
 export default defineNuxtPlugin({
   name: 'supabase-client',
   enforce: 'pre',
@@ -29,7 +32,10 @@ export default defineNuxtPlugin({
     const supabaseAnonKey = config.public.supabaseAnonKey
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.warn('[supabase] Supabase URL/Key belum dikonfigurasi.')
+      log.warn('Supabase URL/Key belum dikonfigurasi.', {
+        hasUrl: Boolean(supabaseUrl),
+        hasKey: Boolean(supabaseAnonKey),
+      })
       return
     }
 

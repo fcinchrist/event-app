@@ -3,13 +3,60 @@ import { useAppStore } from '~/presentation/stores/app'
 
 const store = useAppStore()
 
+/**
+ * Submit handler untuk form event komunitas publik.
+ *
+ * Alih-alih `window.alert()` (UX buruk — memblokir thread, tidak
+ * accessible untuk screen reader, dan tidak bisa di-styled), kita pakai
+ * banner inline + auto-dismiss untuk success & error. State disimpan
+ * di level component ini, bukan global, supaya tidak bocor antar modal.
+ */
+const errorMessage = ref<string | null>(null)
+const successMessage = ref<string | null>(null)
+let dismissTimer: ReturnType<typeof setTimeout> | null = null
+
+function flashMessage(kind: 'error' | 'success', msg: string): void {
+  if (dismissTimer) {
+    clearTimeout(dismissTimer)
+    dismissTimer = null
+  }
+  if (kind === 'error') {
+    errorMessage.value = msg
+    successMessage.value = null
+  } else {
+    successMessage.value = msg
+    errorMessage.value = null
+    // Auto close modal after 1.5s on success.
+    dismissTimer = setTimeout(() => {
+      store.showAddEventModal = false
+    }, 1500)
+  }
+}
+
+onBeforeUnmount(() => {
+  if (dismissTimer) clearTimeout(dismissTimer)
+})
+
 function handleSubmit(): void {
   const error = store.submitNewEvent()
   if (error) {
-    alert(error)
-  } else {
-    alert(`Sukses merilis event baru: "${store.newEventForm.title}"`)
+    flashMessage('error', error)
+    return
   }
+  flashMessage(
+    'success',
+    `Sukses merilis event baru: "${store.newEventForm.title}".`,
+  )
+}
+
+function closeModal(): void {
+  if (dismissTimer) {
+    clearTimeout(dismissTimer)
+    dismissTimer = null
+  }
+  errorMessage.value = null
+  successMessage.value = null
+  store.showAddEventModal = false
 }
 </script>
 
@@ -17,22 +64,49 @@ function handleSubmit(): void {
   <div
     v-if="store.showAddEventModal"
     class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="add-event-title"
   >
     <div
       class="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-100"
-      @click.away="store.showAddEventModal = false"
+      @click.away="closeModal"
     >
       <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
         <div>
-          <h3 class="font-extrabold text-slate-900 text-lg">Buat Event Komunitas Baru</h3>
+          <h3 id="add-event-title" class="font-extrabold text-slate-900 text-lg">Buat Event Komunitas Baru</h3>
           <p class="text-xs text-slate-400 mt-0.5">Lengkapi data berikut untuk merilis agenda baru.</p>
         </div>
-        <button class="text-slate-400 hover:text-rose-600 transition-colors" @click="store.showAddEventModal = false">
-          <i class="fa-solid fa-xmark text-lg" />
+        <button
+          type="button"
+          class="text-slate-400 hover:text-rose-600 transition-colors"
+          aria-label="Tutup formulir event"
+          @click="closeModal"
+        >
+          <i class="fa-solid fa-xmark text-lg" aria-hidden="true" />
         </button>
       </div>
 
       <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+        <div
+          v-if="errorMessage"
+          role="alert"
+          aria-live="assertive"
+          class="bg-rose-50 border border-rose-200 text-rose-800 text-xs p-3 rounded-xl font-medium flex items-start gap-2"
+        >
+          <i class="fa-solid fa-circle-exclamation mt-0.5" aria-hidden="true" />
+          <span>{{ errorMessage }}</span>
+        </div>
+        <div
+          v-else-if="successMessage"
+          role="status"
+          aria-live="polite"
+          class="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs p-3 rounded-xl font-medium flex items-start gap-2"
+        >
+          <i class="fa-solid fa-circle-check mt-0.5" aria-hidden="true" />
+          <span>{{ successMessage }}</span>
+        </div>
+
         <div>
           <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Judul / Nama Event</label>
           <input
@@ -92,12 +166,14 @@ function handleSubmit(): void {
 
       <div class="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
         <button
+          type="button"
           class="w-full py-2.5 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-100 transition-all"
-          @click="store.showAddEventModal = false"
+          @click="closeModal"
         >
           Batal
         </button>
         <button
+          type="button"
           class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-md"
           @click="handleSubmit"
         >

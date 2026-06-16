@@ -330,10 +330,8 @@ function changePage(page: number): void {
 
 async function handleDelete(event: Event): Promise<void> {
   if (!confirm(`Hapus event "${event.title}"? Tindakan ini tidak dapat dibatalkan.`)) return
-  const result = await store.deleteEvent(event.id)
-  if (!result.success) {
-    alert(result.error ?? 'Gagal menghapus event.')
-  }
+  // Store action sudah set state.error -> banner inline di template menampilkan pesan
+  await store.deleteEvent(event.id)
 }
 
 async function handleToggleStatus(event: Event): Promise<void> {
@@ -342,10 +340,8 @@ async function handleToggleStatus(event: Event): Promise<void> {
     ? `Nonaktifkan event "${event.title}"? Event akan disembunyikan dari publik.`
     : `Aktifkan kembali event "${event.title}"?`
   if (!confirm(confirmMsg)) return
-  const result = await store.updateEventStatus(event.id, nextStatus)
-  if (!result.success) {
-    alert(result.error ?? 'Gagal memperbarui status event.')
-  }
+  // Store action sudah set state.error -> banner inline di template menampilkan pesan
+  await store.updateEventStatus(event.id, nextStatus)
 }
 
 function openEdit(event: Event): void {

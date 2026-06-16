@@ -4,6 +4,9 @@ import type { EventStatusValue } from '~/types/common'
 import type { PaginatedResult } from '~/types/pagination'
 import { useSupabaseClient } from '~/infrastructure/supabase/client'
 import { mapEventRow } from '~/infrastructure/mappers/event-mapper'
+import { createLogger } from '~/utils/logger'
+
+const log = createLogger('supabase-event-repo')
 
 const EVENTS_BUCKET = 'event-images'
 // Cap for the server-side range query. Bumped from 20 to 100 so the
@@ -153,7 +156,12 @@ export class SupabaseEventRepository implements EventRepository {
       try {
         await this.deleteImage(oldImage)
       } catch (storageErr: unknown) {
-        console.warn('[update-event] Failed to delete old image:', storageErr)
+        // Orphan photos are non-fatal: the row update has already
+        // succeeded, so we just log and continue. They can be cleaned
+        // up manually from the Supabase Storage dashboard.
+        log.warn('Failed to delete old image (update-event)', storageErr, {
+          oldImage,
+        })
       }
     }
 
@@ -188,7 +196,9 @@ export class SupabaseEventRepository implements EventRepository {
       } catch (storageErr: unknown) {
         // Log and continue with the row delete. Orphan photos can be cleaned
         // up manually from the Supabase Storage dashboard.
-        console.warn('[delete-event] Failed to delete image, continuing with row delete:', storageErr)
+        log.warn('Failed to delete image (delete-event), continuing with row delete', storageErr, {
+          imageUrl,
+        })
       }
     }
 

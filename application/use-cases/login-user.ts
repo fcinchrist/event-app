@@ -1,4 +1,7 @@
 import type { AuthRepository, AuthUser } from '~/domain/repositories/auth-repository'
+import { createLogger } from '~/utils/logger'
+
+const log = createLogger('use-case:login')
 
 export interface LoginResult {
   success: boolean
@@ -19,6 +22,7 @@ export class LoginUser {
       return { success: true, user, error: null }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login gagal. Silakan coba lagi.'
+      log.error('Login failed', err, { email })
       return { success: false, user: null, error: message }
     }
   }

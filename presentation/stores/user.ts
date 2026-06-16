@@ -19,6 +19,11 @@ import { DeleteUser } from '~/application/use-cases/delete-user'
 import { GetUserAttendanceByCategory } from '~/application/use-cases/get-user-attendance-by-category'
 import { GetUserRegistrationYears } from '~/application/use-cases/get-user-registration-years'
 
+import { createLogger } from '~/utils/logger'
+
+const log = createLogger('user-store')
+
+
 interface UserState {
   // Master user list
   users: EventUser[]
@@ -145,6 +150,7 @@ export const useUserStore = defineStore('user', {
         this.users = result.data
         this.totalUsers = result.meta.total
       } catch (err) {
+        log.error('Store action failed', err, { action: 'fetchUsers' })
         this.listError =
           err instanceof Error
             ? err.message
@@ -170,6 +176,7 @@ export const useUserStore = defineStore('user', {
         await this.fetchUsers()
         return { success: true, user, error: null }
       } catch (err) {
+        log.error('Store action failed', err, { action: 'addUser' })
         const message =
           err instanceof Error ? err.message : 'Gagal menambahkan user.'
         this.mutationError = message
@@ -198,6 +205,7 @@ export const useUserStore = defineStore('user', {
         }
         return { success: true, user, error: null }
       } catch (err) {
+        log.error('Store action failed', err, { action: 'updateUser' })
         const message =
           err instanceof Error ? err.message : 'Gagal memperbarui user.'
         this.mutationError = message
@@ -222,6 +230,7 @@ export const useUserStore = defineStore('user', {
         }
         return { success: true, user: null, error: null }
       } catch (err) {
+        log.error('Store action failed', err, { action: 'deleteUser' })
         const message =
           err instanceof Error ? err.message : 'Gagal menghapus user.'
         this.mutationError = message
@@ -265,6 +274,7 @@ export const useUserStore = defineStore('user', {
         this.selectedUserStats = stats
         this.selectedUserRegistrations = registrations
       } catch (err) {
+        log.error('Store action failed', err, { action: 'fetchUserDetail' })
         this.detailError =
           err instanceof Error
             ? err.message
@@ -299,6 +309,7 @@ export const useUserStore = defineStore('user', {
           this.selectedAttendanceYear = years[0] ?? null
         }
       } catch (err) {
+        log.error('Store action failed', err, { action: 'fetchUserRegistrationYears' })
         this.attendanceError =
           err instanceof Error
             ? err.message
@@ -320,6 +331,7 @@ export const useUserStore = defineStore('user', {
         )
         this.attendanceByCategory = stats
       } catch (err) {
+        log.error('Store action failed', err, { action: 'fetchUserAttendanceByCategory' })
         this.attendanceError =
           err instanceof Error
             ? err.message

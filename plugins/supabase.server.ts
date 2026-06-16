@@ -2,6 +2,7 @@ import { defineNuxtPlugin, useNuxtApp } from '#imports'
 import { createServerClient, parseCookieHeader, type CookieOptions } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useRuntimeConfig, useRequestEvent } from '#imports'
+import { createLogger } from '~/utils/logger'
 
 /**
  * Plugin server-side: membuat Supabase client dengan pembacaan session
@@ -12,6 +13,8 @@ import { useRuntimeConfig, useRequestEvent } from '#imports'
  * PENTING: instance tidak disimpan di `useState()` (lihat plugins/supabase.client.ts
  * untuk alasan lengkap) — supaya tidak ikut ter-serialize ke SSR payload.
  */
+const log = createLogger('supabase-server')
+
 export default defineNuxtPlugin({
   name: 'supabase-server',
   enforce: 'pre',
@@ -26,7 +29,10 @@ export default defineNuxtPlugin({
     const supabaseUrl = config.public.supabaseUrl
     const supabaseAnonKey = config.public.supabaseAnonKey
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.warn('[supabase] Supabase URL/Key belum dikonfigurasi.')
+      log.warn('Supabase URL/Key belum dikonfigurasi.', {
+        hasUrl: Boolean(supabaseUrl),
+        hasKey: Boolean(supabaseAnonKey),
+      })
       return
     }
 
