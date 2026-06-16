@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <!--
+    Static sitemap. Update <lastmod> when deploying new content.
+    Event detail URLs are added dynamically by the public landing
+    page crawler, but this file covers the static top-level routes
+    that should always be indexable.
+  -->
+  <url>
+    <loc>https://friendship-community.vercel.app/</loc>
+    <lastmod>2026-06-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://friendship-community.vercel.app/admin/login</loc>
+    <lastmod>2026-06-16</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://friendship-community.vercel.app/admin/forgot-password</loc>
+    <lastmod>2026-06-16</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+</urlset>

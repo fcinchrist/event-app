@@ -57,17 +57,17 @@ function handleLogout(): Promise<void> {
           aria-label="Open navigation menu"
           @click="toggleMobileNav"
         >
-          <i class="fa-solid fa-bars text-lg" />
+          <i class="fa-solid fa-bars text-lg" aria-hidden="true" />
         </button>
 
         <div class="flex items-center gap-3 cursor-pointer min-w-0" @click="handleLogoClick">
-          <div class="bg-emerald-600 text-white p-2.5 rounded-xl shadow-md shadow-emerald-200 shrink-0">
+          <div class="bg-emerald-600 text-white p-2.5 rounded-xl shadow-md shadow-emerald-200 shrink-0" aria-hidden="true">
             <i class="fa-solid fa-calendar-check text-xl" />
           </div>
           <div class="min-w-0">
-            <h1 class="font-extrabold text-base sm:text-lg text-slate-900 tracking-tight truncate">
+            <span class="block font-extrabold text-base sm:text-lg text-slate-900 tracking-tight truncate" role="heading" aria-level="2">
               {{ config.public.companyName }} Events
-            </h1>
+            </span>
             <p class="text-[10px] sm:text-xs text-slate-500 font-medium hidden xs:block">
               Reservasi & Absensi Platform
             </p>
@@ -92,14 +92,14 @@ function handleLogout(): Promise<void> {
             to="/dashboard"
             class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm shadow-emerald-100 transition-all flex items-center gap-1.5"
           >
-            <i class="fa-solid fa-chart-line" /> Dashboard
+            <i class="fa-solid fa-chart-line" aria-hidden="true" /> Dashboard
           </NuxtLink>
           <NuxtLink
             v-else
             to="/admin/login"
             class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm shadow-emerald-100 transition-all flex items-center gap-1.5"
           >
-            <i class="fa-solid fa-lock" /> Admin Login
+            <i class="fa-solid fa-lock" aria-hidden="true" /> Admin Login
           </NuxtLink>
         </template>
         <template v-else>
@@ -107,7 +107,7 @@ function handleLogout(): Promise<void> {
             to="/"
             class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm shadow-emerald-100 transition-all flex items-center gap-1.5"
           >
-            <i class="fa-solid fa-house" /> Halaman Utama
+            <i class="fa-solid fa-house" aria-hidden="true" /> Halaman Utama
           </NuxtLink>
         </template>
 
@@ -115,7 +115,7 @@ function handleLogout(): Promise<void> {
         <template v-if="store.isAdminLoggedIn">
           <!-- Email chip: emerald primary (matches the brand buttons) -->
           <span class="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 max-w-[180px] truncate shadow-sm shadow-emerald-100">
-            <i class="fa-solid fa-shield-halved" />
+            <i class="fa-solid fa-shield-halved" aria-hidden="true" />
             <span class="truncate">{{ store.authUser?.email }}</span>
           </span>
           <!-- Logout: full red (rose) -->
@@ -123,7 +123,7 @@ function handleLogout(): Promise<void> {
             class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 shadow-sm shadow-rose-100 transition-all flex items-center gap-1.5"
             @click="handleLogout"
           >
-            <i class="fa-solid fa-arrow-right-from-bracket" /> Logout
+            <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true" /> Logout
           </button>
         </template>
       </div>

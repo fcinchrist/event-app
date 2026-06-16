@@ -1,2 +1,11 @@
-User-Agent: *
-Disallow:
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /admin/*
+Disallow: /dashboard/
+Disallow: /dashboard/*
+
+# Crawl-delay polite untuk bot yang mengikuti hints
+Crawl-delay: 1
+
+Sitemap: https://friendship-community.vercel.app/sitemap.xml

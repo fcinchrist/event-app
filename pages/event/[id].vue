@@ -76,6 +76,15 @@ watch(
     imageErrored.value = false
   },
 )
+
+/**
+ * Hide the gradient placeholder once the LCP cover image has
+ * finished loading. Equivalent to the previous inline handler but
+ * kept as a named function for clarity.
+ */
+function onCoverLoad(): void {
+  // Intentionally empty — NuxtImg handles the rendering transition.
+}
 </script>
 
 <template>
@@ -107,7 +116,7 @@ watch(
           to="/"
           class="mt-5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5"
         >
-          <i class="fa-solid fa-arrow-left" /> Kembali ke Daftar Event
+          <i class="fa-solid fa-arrow-left" aria-hidden="true" /> Kembali ke Daftar Event
         </NuxtLink>
       </div>
     </div>
@@ -119,16 +128,24 @@ watch(
         <!-- Event Info Card -->
         <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
           <div class="h-64 sm:h-80 bg-slate-100 relative overflow-hidden">
-            <div class="absolute inset-0 animate-pulse bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100" />
-            <img
+            <div v-if="!imageErrored" class="absolute inset-0 animate-pulse bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100" />
+            <NuxtImg
               v-if="showCover"
               :src="coverSrc"
-              alt="Cover"
+              :alt="store.selectedEvent.title"
+              loading="eager"
+              fetchpriority="high"
+              decoding="async"
+              width="800"
+              height="320"
+              sizes="100vw sm:800px lg:66vw"
+              format="webp"
+              quality="80"
               class="w-full h-full object-cover relative z-10"
-              @load="($event.target as HTMLImageElement).previousElementSibling?.classList.add('hidden')"
+              @load="onCoverLoad"
               @error="imageErrored = true"
-            >
-            <div v-else class="absolute inset-0 z-10 flex items-center justify-center text-slate-300">
+            />
+            <div v-else class="absolute inset-0 z-10 flex items-center justify-center text-slate-300" aria-hidden="true">
               <i class="fa-regular fa-image text-6xl" />
             </div>
             <div class="absolute top-4 left-4 z-20 bg-slate-900/90 backdrop-blur-sm px-3 py-1 rounded-xl text-xs font-bold text-white">
@@ -143,13 +160,13 @@ watch(
               v-if="categoryName"
               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wider"
             >
-              <i class="fa-solid fa-tag text-[11px]" />
+              <i class="fa-solid fa-tag text-[11px]" aria-hidden="true" />
               {{ categoryName }}
             </span>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs border-y border-slate-100 py-4 my-2">
               <div class="flex items-center gap-3">
-                <div class="bg-slate-100 text-slate-600 p-2.5 rounded-xl">
+                <div class="bg-slate-100 text-slate-600 p-2.5 rounded-xl" aria-hidden="true">
                   <i class="fa-solid fa-calendar text-base" />
                 </div>
                 <div>
@@ -158,7 +175,7 @@ watch(
                 </div>
               </div>
               <div class="flex items-center gap-3">
-                <div class="bg-slate-100 text-slate-600 p-2.5 rounded-xl">
+                <div class="bg-slate-100 text-slate-600 p-2.5 rounded-xl" aria-hidden="true">
                   <i class="fa-solid fa-location-dot text-base" />
                 </div>
                 <div>

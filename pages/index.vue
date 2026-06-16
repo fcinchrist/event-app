@@ -84,7 +84,7 @@ watch(
       class="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden"
     >
       <div class="flex flex-col items-center justify-center px-6 py-16 text-center">
-        <div class="bg-slate-100 text-slate-400 w-16 h-16 rounded-2xl flex items-center justify-center mb-4">
+        <div class="bg-slate-100 text-slate-400 w-16 h-16 rounded-2xl flex items-center justify-center mb-4" aria-hidden="true">
           <i class="fa-solid fa-calendar-xmark text-2xl" />
         </div>
         <h4 class="font-bold text-slate-800 text-lg">Tidak Ada Event</h4>
@@ -95,7 +95,7 @@ watch(
           class="mt-5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5"
           @click="store.filterCategoryId = null; store.clearDateFilter()"
         >
-          <i class="fa-solid fa-rotate-left" /> Reset Filter
+          <i class="fa-solid fa-rotate-left" aria-hidden="true" /> Reset Filter
         </button>
       </div>
     </div>

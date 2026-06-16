@@ -66,15 +66,33 @@ onMounted(async () => {
 
 <template>
   <div class="min-h-screen flex flex-col bg-slate-50">
+    <!--
+      Skip-to-content link (Accessibility).
+      Hidden visually until keyboard-focused, then jumps directly to
+      `#main-content` (the <main> below) so screen-reader & keyboard
+      users don't have to tab through the navigation each page load.
+      Required by WCAG 2.1 (Success Criterion 2.4.1 Bypass Blocks).
+    -->
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-emerald-600 focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+    >
+      Skip to main content
+    </a>
+
     <LayoutAppHeader />
 
-    <main class="flex-1 w-full">
+    <main
+      id="main-content"
+      class="flex-1 w-full"
+      tabindex="-1"
+    >
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <slot />
       </div>
     </main>
 
-    <LayoutAppFooter />
+    <LayoutAppFooter role="contentinfo" />
 
     <!--
       Global mobile drawer (one for every page).

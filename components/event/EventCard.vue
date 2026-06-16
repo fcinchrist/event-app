@@ -46,23 +46,30 @@ const categoryName = computed<string | null>(() => {
           default are empty (or the default itself 404s). Ensures the
           card never renders a broken `<img>` or broken icon state.
         -->
-        <div v-if="!showImage" class="absolute inset-0 flex items-center justify-center text-slate-300">
+        <div v-if="!showImage" class="absolute inset-0 flex items-center justify-center text-slate-300" aria-hidden="true">
           <i class="fa-regular fa-image text-4xl" />
         </div>
-        <img
+        <NuxtImg
           v-else
           :src="imageSrc"
-          alt="Poster Event"
+          :alt="`Poster event: ${props.event.title}`"
+          loading="lazy"
+          decoding="async"
+          width="400"
+          height="192"
+          sizes="100vw sm:50vw lg:33vw"
+          format="webp"
+          quality="75"
           class="w-full h-full object-cover transition-opacity duration-300"
           :class="imageLoaded ? 'opacity-100' : 'opacity-0'"
           @load="imageLoaded = true"
           @error="imageErrored = true"
-        >
+        />
         <div class="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[10px] font-bold text-white uppercase tracking-wider">
           <span>{{ store.getEventStatusBadge(props.event.date) }}</span>
         </div>
         <div class="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl shadow-sm text-xs font-bold text-slate-800 flex items-center gap-1.5">
-          <i class="fa-solid fa-users text-emerald-600" />
+          <i class="fa-solid fa-users text-emerald-600" aria-hidden="true" />
           <span>{{ regStore.getSlotsTakenByEvent(props.event.id) }}/{{ props.event.quota }} Terisi</span>
         </div>
       </div>
@@ -77,15 +84,15 @@ const categoryName = computed<string | null>(() => {
           v-if="categoryName"
           class="inline-flex items-center gap-1 mt-2 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold uppercase tracking-wider"
         >
-          <i class="fa-solid fa-tag text-[10px]" />
+          <i class="fa-solid fa-tag text-[10px]" aria-hidden="true" />
           {{ categoryName }}
         </span>
         <p class="text-xs text-slate-500 mt-2 flex items-center gap-1.5">
-          <i class="fa-solid fa-calendar-days text-slate-400" />
+          <i class="fa-solid fa-calendar-days text-slate-400" aria-hidden="true" />
           <span>{{ store.formatDate(props.event.date) }}</span>
         </p>
         <p class="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
-          <i class="fa-solid fa-location-dot text-slate-400" />
+          <i class="fa-solid fa-location-dot text-slate-400" aria-hidden="true" />
           <span class="truncate">{{ props.event.location }}</span>
         </p>
         <p class="text-sm text-slate-600 mt-3 line-clamp-2">{{ props.event.description }}</p>
@@ -97,7 +104,7 @@ const categoryName = computed<string | null>(() => {
         class="w-full py-2.5 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2"
       >
         <span>Lihat Detail & Daftar</span>
-        <i class="fa-solid fa-arrow-right text-xs" />
+        <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true" />
       </NuxtLink>
     </div>
   </div>
