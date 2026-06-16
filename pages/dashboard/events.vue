@@ -547,12 +547,17 @@ function categoryNameFor(categoryId: string | null): string | null {
           </div>
         </div>
 
-        <!-- Rows -->
-        <div class="divide-y divide-slate-100">
+        <!-- Rows.
+             Wrapper pakai `space-y-2` (mobile) dan `space-y-0` (desktop)
+             supaya card mobile punya jarak antar-event yang jelas
+             (card 1, 2, 3, 4 di screenshot tadinya mepet). Di desktop
+             kita tetap pakai `divide-y` visual separator supaya rapi
+             dan hemat tinggi. -->
+        <div class="md:divide-y md:divide-slate-100 space-y-2 md:space-y-0">
           <div
             v-for="event in filteredEvents"
             :key="event.id"
-            class="px-5 py-3 hover:bg-slate-50/60 transition-colors"
+            class="px-4 sm:px-5 py-3 md:py-3.5 hover:bg-slate-50/60 transition-colors bg-white md:bg-transparent border border-slate-200 md:border-0 rounded-2xl md:rounded-none shadow-sm md:shadow-none"
           >
             <!-- Desktop: 1 baris grid. Pakai grid template yang sama
                  persis dengan header (kolom 7-col) supaya sejajar
@@ -751,49 +756,62 @@ function categoryNameFor(categoryId: string | null): string | null {
                 </div>
               </div>
 
-              <!-- Action row: icon-only supaya muat di mobile -->
-              <div class="flex items-center justify-end gap-1.5 pt-1">
-                <button
-                  type="button"
-                  class="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 border border-slate-200 transition-all relative"
-                  title="Lihat & kelola peserta"
-                  @click="openParticipants(event)"
-                >
-                  <i class="fa-solid fa-users text-sm" />
-                  <span
-                    v-if="regStore.participantsByEvent[event.id]?.length"
-                    class="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-indigo-600 text-white text-[9px] font-extrabold rounded-full flex items-center justify-center"
+              <!-- Action row: dipisah jadi 2 grup supaya visualnya
+                   lebih jelas. Grup kiri = "kelola" (peserta, edit),
+                   grup kanan = "destructive" (toggle, hapus).
+                   Masing-masing dibungkus background slate-50 + border
+                   supaya tidak mepet ke konten di atasnya. -->
+              <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 mt-2">
+                <!-- Grup kelola -->
+                <div class="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-0.5">
+                  <button
+                    type="button"
+                    class="relative h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-[11px] font-bold text-slate-600 hover:text-indigo-700 hover:bg-white transition-all"
+                    title="Lihat & kelola peserta"
+                    @click="openParticipants(event)"
                   >
-                    {{ regStore.participantsByEvent[event.id].length }}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  class="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-200 transition-all"
-                  title="Edit event"
-                  :disabled="store.isSubmitting"
-                  @click="openEdit(event)"
-                >
-                  <i class="fa-solid fa-pen-to-square text-sm" />
-                </button>
-                <button
-                  v-if="event.status === 'Aktif' || event.status === 'Dibatalkan'"
-                  type="button"
-                  class="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-amber-700 hover:bg-amber-50 border border-slate-200 transition-all"
-                  :title="event.status === 'Aktif' ? 'Nonaktifkan event' : 'Aktifkan event'"
-                  :disabled="store.isSubmitting"
-                  @click="handleToggleStatus(event)"
-                >
-                  <i :class="event.status === 'Aktif' ? 'fa-solid fa-ban' : 'fa-solid fa-rotate-left'" class="text-sm" />
-                </button>
-                <button
-                  type="button"
-                  class="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-rose-700 hover:bg-rose-50 border border-slate-200 transition-all"
-                  title="Hapus event"
-                  @click="handleDelete(event)"
-                >
-                  <i class="fa-solid fa-trash-can text-sm" />
-                </button>
+                    <i class="fa-solid fa-users text-xs" />
+                    <span>Peserta</span>
+                    <span
+                      v-if="regStore.participantsByEvent[event.id]?.length"
+                      class="min-w-[18px] h-[18px] px-1.5 bg-indigo-600 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center"
+                    >
+                      {{ regStore.participantsByEvent[event.id].length }}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    class="h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-[11px] font-bold text-slate-600 hover:text-emerald-700 hover:bg-white transition-all"
+                    title="Edit event"
+                    :disabled="store.isSubmitting"
+                    @click="openEdit(event)"
+                  >
+                    <i class="fa-solid fa-pen-to-square text-xs" />
+                    <span>Edit</span>
+                  </button>
+                </div>
+
+                <!-- Grup destructive -->
+                <div class="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-0.5">
+                  <button
+                    v-if="event.status === 'Aktif' || event.status === 'Dibatalkan'"
+                    type="button"
+                    class="h-8 w-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-amber-700 hover:bg-white transition-all"
+                    :title="event.status === 'Aktif' ? 'Nonaktifkan event' : 'Aktifkan event'"
+                    :disabled="store.isSubmitting"
+                    @click="handleToggleStatus(event)"
+                  >
+                    <i :class="event.status === 'Aktif' ? 'fa-solid fa-ban' : 'fa-solid fa-rotate-left'" class="text-xs" />
+                  </button>
+                  <button
+                    type="button"
+                    class="h-8 w-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-rose-700 hover:bg-white transition-all"
+                    title="Hapus event"
+                    @click="handleDelete(event)"
+                  >
+                    <i class="fa-solid fa-trash-can text-xs" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -394,16 +394,21 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Rows (mobile) -->
-        <div class="md:hidden divide-y divide-slate-100">
+        <!-- Rows (mobile).
+             Wrapper pakai `space-y-2` (mobile) supaya tiap kartu user
+             punya jarak jelas, dan `md:hidden divide-y` (desktop)
+             tetap rapat. Avatar lebih besar (w-14 h-14) supaya proporsi
+             dengan info di kanannya. Action row dipisah dengan border-top
+             supaya tidak mepet ke badge di atasnya. -->
+        <div class="md:hidden space-y-2 p-2">
           <div
             v-for="user in store.users"
             :key="`m-${user.id}`"
-            class="p-4 flex gap-3"
+            class="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex gap-3"
           >
             <button
               type="button"
-              class="w-12 h-12 rounded-full flex items-center justify-center font-extrabold text-sm shrink-0"
+              class="w-14 h-14 rounded-full flex items-center justify-center font-extrabold text-base shrink-0 ring-2 ring-white shadow-sm"
               :class="avatarColor(user.id)"
               @click="goToDetail(user.id)"
             >
@@ -415,28 +420,28 @@ onMounted(async () => {
                 class="w-full flex items-start justify-between gap-2 text-left"
                 @click="goToDetail(user.id)"
               >
-                <h3 class="font-bold text-slate-900 text-sm leading-snug truncate min-w-0">
+                <h3 class="font-bold text-slate-900 text-sm leading-snug line-clamp-2 min-w-0">
                   {{ user.nama }}
                 </h3>
                 <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-extrabold border border-indigo-100 shrink-0">
-                  <i class="fa-solid fa-calendar-check text-[9px]" />
+                  <i class="fa-solid fa-calendar-check text-[9px]" aria-hidden="true" />
                   {{ registrationCountByUser[user.id] ?? '…' }}
                 </span>
               </button>
-              <div class="mt-1 space-y-0.5 text-[11px] text-slate-500">
+              <div class="mt-1.5 space-y-1 text-[11px] text-slate-500">
                 <p class="font-mono truncate flex items-center gap-1.5">
-                  <i class="fa-brands fa-whatsapp text-emerald-500" />
+                  <i class="fa-brands fa-whatsapp text-emerald-500 w-3 text-center" aria-hidden="true" />
                   {{ user.noHp }}
                 </p>
                 <p class="flex items-center gap-1.5">
-                  <i class="fa-regular fa-calendar text-slate-400" />
+                  <i class="fa-regular fa-calendar text-slate-400 w-3 text-center" aria-hidden="true" />
                   {{ formatCreated(user.createdAt) }}
                 </p>
               </div>
-              <div class="mt-2 flex flex-wrap items-center gap-1.5">
+              <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
                 <span
                   :class="[
-                    'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold border',
+                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border',
                     statusStyle(user.userStatus).badge,
                   ]"
                 >
@@ -445,7 +450,7 @@ onMounted(async () => {
                 </span>
                 <span
                   :class="[
-                    'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold border',
+                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border',
                     memberStyle(user.memberType).badge,
                   ]"
                 >
@@ -453,21 +458,27 @@ onMounted(async () => {
                   {{ MEMBER_TYPE_LABELS[user.memberType] }}
                 </span>
               </div>
-              <div class="mt-2 flex items-center gap-1.5">
-                <button
-                  type="button"
-                  class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 text-[11px] font-bold"
-                  @click="openEditModal(user)"
-                >
-                  <i class="fa-solid fa-pen" /> Edit
-                </button>
-                <button
-                  type="button"
-                  class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 text-[11px] font-bold"
-                  @click="askDelete(user)"
-                >
-                  <i class="fa-solid fa-trash" /> Hapus
-                </button>
+
+              <!-- Action row: dipisah dengan border-top supaya tidak
+                   mepet ke badge. Tombol pakai container bg-slate-50
+                   agar lebih jelas grouping-nya. -->
+              <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-end gap-1.5">
+                <div class="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-0.5">
+                  <button
+                    type="button"
+                    class="h-8 px-3 rounded-lg flex items-center gap-1.5 text-[11px] font-bold text-amber-700 hover:bg-white transition-all"
+                    @click="openEditModal(user)"
+                  >
+                    <i class="fa-solid fa-pen text-xs" aria-hidden="true" /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="h-8 px-3 rounded-lg flex items-center gap-1.5 text-[11px] font-bold text-rose-700 hover:bg-white transition-all"
+                    @click="askDelete(user)"
+                  >
+                    <i class="fa-solid fa-trash text-xs" aria-hidden="true" /> Hapus
+                  </button>
+                </div>
               </div>
             </div>
           </div>
