@@ -31,6 +31,15 @@ const editingEvent = ref<Event | null>(null)
 const searchQuery = ref('')
 const imageLoadMap = ref<Record<string, boolean>>({})
 
+// Mobile UX: sembunyikan period filter di balik toggle.
+// Default false (tersembunyi) supaya halaman tidak penuh di
+// viewport sempit. User yang butuh filter bisa tap tombol
+// "Filter Periode" di header.
+const showPeriodFilter = ref(false)
+function togglePeriodFilter(): void {
+  showPeriodFilter.value = !showPeriodFilter.value
+}
+
 // Global success banner. Di-set dari `onCreateSuccess` (dipanggil
 // oleh `<DashboardAddEventModal>` saat `emit('success', ...)`).
 // Auto-dismiss setelah 4 detik supaya user tidak harus klik manual
@@ -459,66 +468,110 @@ function categoryNameFor(categoryId: string | null): string | null {
   <DashboardShell :items="NAV_ITEMS" section-label="Panel Operasional">
     <section class="space-y-5">
       <!-- ============ Header Halaman ============ -->
-      <header class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-        <div>
-          <div class="flex items-center gap-2 mb-1">
-            <span class="w-1.5 h-6 rounded-full bg-emerald-500" />
-            <h2 class="font-extrabold text-2xl text-emerald-700">Kelola Event</h2>
+      <!--
+        Layout mobile-first: judul + deskripsi ringkas di atas, lalu
+        baris berisi (1) badge periode aktif (ringkas, single-line)
+        dan (2) tombol Buat Event full-width supaya gampang dijangkau
+        ibu- jari. Pada layar `sm+`, layout jadi 2-kolom (judul di
+        kiri, tombol di kanan) sesuai desain desktop.
+      -->
+      <header class="space-y-3">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="w-1.5 h-6 rounded-full bg-emerald-500" />
+              <h2 class="font-extrabold text-2xl text-emerald-700">Kelola Event</h2>
+            </div>
+            <p class="text-xs sm:text-sm text-slate-500">
+              Daftar lengkap event komunitas {{ config.public.companyName }}.
+            </p>
           </div>
-          <p class="text-xs text-slate-500">
-            Daftar lengkap event komunitas {{ config.public.companyName }}.
-          </p>
-          <!-- Badge periode aktif (sama seperti di summary) -->
-          <div class="mt-2 inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg text-[11px] font-semibold">
+          <!-- Badge periode aktif (klik untuk toggle filter) -->
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-2 rounded-xl text-sm font-semibold border border-emerald-200 hover:bg-emerald-100 transition-colors self-start sm:self-auto"
+            :aria-expanded="showPeriodFilter"
+            aria-controls="period-filter-panel"
+            @click="togglePeriodFilter"
+          >
             <i class="fa-solid fa-filter" />
-            Periode aktif: {{ periodLabel }}
-          </div>
+            <span>Periode: {{ periodLabel }}</span>
+            <i
+              :class="showPeriodFilter ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down'"
+              class="text-xs ml-1"
+            />
+          </button>
         </div>
-        <UiAppButton variant="primary" @click="openAdd">
+        <!-- Tombol Buat Event full-width di mobile, auto di sm+ -->
+        <UiAppButton
+          variant="primary"
+          class="w-full sm:w-auto sm:self-end text-base py-3 sm:py-2"
+          size="lg"
+          @click="openAdd"
+        >
           <i class="fa-solid fa-plus-circle" /> Buat Event Baru
         </UiAppButton>
       </header>
 
-      <!-- Filter periode (sama seperti di summary dashboard) -->
-      <DashboardPeriodFilter
-        :model-value="store.period"
-        :is-loading="store.isRegistrationsLoading"
-        @update:model-value="(v) => (store.period = v)"
-        @apply="onApplyPeriod"
-      />
+      <!--
+        Filter periode: di mobile disembunyikan di balik toggle
+        (default collapsed) supaya tidak memenuhi layar. Di desktop
+        selalu tampil sm+. Behavior UX: untuk user lanjut usia,
+        halaman utama cukup berisi judul + tombol besar + daftar
+        event, tanpa harus scroll melewati panel filter yang
+        menghabiskan banyak vertikal space.
+      -->
+      <div
+        id="period-filter-panel"
+        :class="showPeriodFilter ? 'block' : 'hidden sm:block'"
+      >
+        <DashboardPeriodFilter
+          :model-value="store.period"
+          :is-loading="store.isRegistrationsLoading"
+          @update:model-value="(v) => (store.period = v)"
+          @apply="onApplyPeriod"
+        />
+      </div>
 
       <!-- ============ Toolbar: Search + Filter Tabs ============ -->
+      <!--
+        Mobile-first: search box lebih besar (h-12), font 15px,
+        dan tab status pakai `grid grid-cols-2` di mobile (sehingga
+        "Selesai" tidak ke-cut) lalu `flex` di sm+. Ukuran tab juga
+        lebih besar (h-11) supaya mudah di-tap.
+      -->
       <div class="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-          <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex-grow min-w-[200px] focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-emerald-500">
-            <i class="fa-solid fa-magnifying-glass text-slate-400 text-xs" />
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="Cari judul atau lokasi event..."
-              class="bg-transparent text-xs w-full focus:outline-none"
-              @input="onSearchInput"
-            >
-          </div>
+        <!-- Search -->
+        <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 h-12 sm:h-11 focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-emerald-500">
+          <i class="fa-solid fa-magnifying-glass text-slate-400 text-sm" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Cari judul atau lokasi..."
+            class="bg-transparent text-sm sm:text-sm w-full focus:outline-none placeholder:text-slate-400"
+            @input="onSearchInput"
+          >
         </div>
 
-        <!-- Status Filter Tabs -->
-        <div class="flex items-center gap-1.5 overflow-x-auto pb-1 -mb-1">
+        <!-- Status Filter Tabs: grid 2-kolom di mobile supaya 3 tab
+             muat (Semua, Aktif, Selesai / Dibatalkan) tanpa scroll.
+             Pada sm+ kembali ke 1 baris dengan icon. -->
+        <div class="grid grid-cols-3 sm:flex sm:items-center sm:gap-1.5 sm:overflow-x-auto gap-2">
           <button
             v-for="tab in TABS"
             :key="tab.key"
             type="button"
-            class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 border"
+            class="h-11 sm:h-9 px-2 sm:px-3 rounded-xl sm:rounded-lg text-sm sm:text-xs font-bold transition-all flex items-center justify-center sm:justify-start gap-1.5 shrink-0 border"
             :class="statusFilter === tab.key
               ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-100'
               : 'bg-white text-slate-600 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'"
             @click="statusFilter = tab.key"
           >
-            <i :class="tab.icon" />
-            {{ tab.label }}
+            <i :class="tab.icon" class="text-xs" />
+            <span class="truncate">{{ tab.label }}</span>
             <span
-              class="px-1.5 py-0.5 rounded-md text-[10px] font-extrabold"
-              :class="statusFilter === tab.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'"
+              class="px-1.5 py-0.5 rounded-md text-[11px] sm:text-[10px] font-extrabold min-w-[22px] text-center"
+              :class="statusFilter === tab.key ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-600'"
             >
               {{ countByStatus[tab.key] }}
             </span>
@@ -761,14 +814,16 @@ function categoryNameFor(categoryId: string | null): string | null {
                 </button>
               </div>
             </div>
-            <!-- Mobile: card view. Padding tetap ada di row, jadi
-                 di sini cukup layout isinya. Avatar + meta sejajar
-                 dengan baseline. Action row pakai icon-only button
-                 supaya muat di layar sempit. -->
-            <div class="md:hidden space-y-3">
-              <!-- Header: avatar + judul + status -->
-              <div class="flex gap-3">
-                <div class="w-14 h-14 rounded-xl overflow-hidden bg-slate-100 shrink-0 relative border border-slate-200">
+            <!-- Mobile: card view. Dirancang untuk pengguna
+                 lanjut usia — font 16px, sentuh 48px+, label
+                 jelas di setiap tombol, dan tata letak vertikal
+                 yang tidak sempit. -->
+            <div class="md:hidden p-1 space-y-4">
+              <!-- Header: avatar besar + judul + status. Avatar
+                   64px (w-16 h-16) supaya jelas dari jauh. Judul
+                   16px (text-base) lebih mudah dibaca. -->
+              <div class="flex gap-4">
+                <div class="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 shrink-0 relative border-2 border-slate-200">
                   <div
                     v-if="!imageLoadMap[event.id] && resolveEventImage(event.image)"
                     class="absolute inset-0 animate-pulse bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100"
@@ -786,134 +841,136 @@ function categoryNameFor(categoryId: string | null): string | null {
                     v-else
                     class="w-full h-full flex items-center justify-center text-slate-300"
                   >
-                    <i class="fa-solid fa-image text-base" />
+                    <i class="fa-solid fa-image text-lg" />
                   </div>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <div class="flex items-start justify-between gap-2">
-                    <h3 class="font-bold text-slate-900 text-sm leading-snug line-clamp-2 min-w-0">
-                      {{ event.title }}
-                    </h3>
+                  <h3 class="font-bold text-slate-900 text-base leading-snug line-clamp-2">
+                    {{ event.title }}
+                  </h3>
+                  <div class="mt-1.5">
                     <span
-                      :class="['inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0', statusStyle(event.status).badge]"
+                      :class="['inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border', statusStyle(event.status).badge]"
                     >
-                      <span :class="['w-1.5 h-1.5 rounded-full', statusStyle(event.status).dot]" />
+                      <span :class="['w-2 h-2 rounded-full', statusStyle(event.status).dot]" />
                       {{ statusStyle(event.status).label }}
                     </span>
                   </div>
-                  <p class="mt-1 text-[10px] text-slate-400 font-mono">
-                    ID: {{ event.id.slice(0, 8) }}…
-                  </p>
                 </div>
               </div>
 
-              <!-- Meta: list vertikal ringkas (icon + text), sama
-                   seperti versi sebelumnya supaya konsisten & mudah
-                   di-scan di mobile. -->
-              <div class="space-y-1 text-[11px] text-slate-600">
-                <div class="flex items-center gap-1.5 truncate">
-                  <i class="fa-solid fa-calendar text-emerald-500 w-3 text-center" />
-                  <span class="truncate">{{ formatShortDate(event.date) }}</span>
+              <!-- Meta: dibungkus kartu dengan background supaya
+                   tidak tercerai-berai. Font 14px (text-sm) dan icon
+                   16px (w-4) lebih jelas di mobile. -->
+              <div class="bg-slate-50 rounded-xl p-3 space-y-2 text-sm text-slate-700">
+                <div class="flex items-center gap-2">
+                  <i class="fa-solid fa-calendar text-emerald-600 w-4 text-center shrink-0" />
+                  <span class="truncate">
+                    <span class="font-bold text-slate-800">{{ formatDay(event.date) }}</span>
+                    <span class="text-slate-500"> · {{ formatTime(event.date) }} WIB</span>
+                  </span>
                 </div>
-                <div class="flex items-center gap-1.5 truncate">
-                  <i class="fa-solid fa-location-dot text-rose-400 w-3 text-center" />
+                <div class="flex items-center gap-2">
+                  <i class="fa-solid fa-location-dot text-rose-500 w-4 text-center shrink-0" />
                   <span class="truncate">{{ event.location }}</span>
                 </div>
-                <div class="flex items-center gap-1.5 truncate">
-                  <i class="fa-solid fa-tag text-emerald-500 w-3 text-center" />
+                <div class="flex items-center gap-2">
+                  <i class="fa-solid fa-tag text-emerald-600 w-4 text-center shrink-0" />
                   <span class="truncate">
                     {{ categoryNameFor(event.categoryId) ?? 'Tanpa kategori' }}
                   </span>
                 </div>
-                <div class="flex items-center gap-1.5">
-                  <i class="fa-solid fa-user-group text-slate-400 w-3 text-center" />
-                  <span>Kuota {{ event.quota }} slot</span>
+                <div class="flex items-center gap-2">
+                  <i class="fa-solid fa-user-group text-slate-500 w-4 text-center shrink-0" />
+                  <span>
+                    Kuota
+                    <span class="font-bold text-slate-800">{{ event.quota }}</span>
+                    slot
+                  </span>
                 </div>
               </div>
 
-              <!-- Action row: dipisah jadi 2 grup supaya visualnya
-                   lebih jelas. Grup kiri = "kelola" (peserta, edit),
-                   grup kanan = "destructive" (toggle, hapus).
-                   Masing-masing dibungkus background slate-50 + border
-                   supaya tidak mepet ke konten di atasnya. -->
-              <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 mt-2">
-                <!-- Grup kelola -->
-                <div class="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-0.5">
-                  <button
-                    type="button"
-                    class="relative h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-[11px] font-bold text-slate-600 hover:text-indigo-700 hover:bg-white transition-all"
-                    title="Lihat & kelola peserta"
-                    @click="openParticipants(event)"
+              <!-- Action stack: tombol full-width dalam 2 baris
+                   grid. Tinggi 48px (h-12) sesuai standar touch
+                   target. Setiap tombol punya border-2 + label teks
+                   supaya jelas & tidak salah pencet. -->
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  class="relative h-12 px-3 rounded-xl border-2 border-indigo-200 bg-indigo-50 text-indigo-700 font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                  title="Lihat & kelola peserta"
+                  @click="openParticipants(event)"
+                >
+                  <i class="fa-solid fa-users" />
+                  <span>Peserta</span>
+                  <span
+                    v-if="regStore.participantsByEvent[event.id]?.length"
+                    class="min-w-[20px] h-5 px-1.5 bg-indigo-600 text-white text-xs font-extrabold rounded-full flex items-center justify-center"
                   >
-                    <i class="fa-solid fa-users text-xs" />
-                    <span>Peserta</span>
-                    <span
-                      v-if="regStore.participantsByEvent[event.id]?.length"
-                      class="min-w-[18px] h-[18px] px-1.5 bg-indigo-600 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center"
-                    >
-                      {{ regStore.participantsByEvent[event.id].length }}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    class="h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-[11px] font-bold text-slate-600 hover:text-emerald-700 hover:bg-white transition-all"
-                    title="Edit event"
-                    :disabled="store.isSubmitting"
-                    @click="openEdit(event)"
-                  >
-                    <i class="fa-solid fa-pen-to-square text-xs" />
-                    <span>Edit</span>
-                  </button>
-                </div>
-
-                <!-- Grup destructive -->
-                <div class="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-0.5">
-                  <button
-                    v-if="event.status === 'Aktif' || event.status === 'Dibatalkan'"
-                    type="button"
-                    class="h-8 w-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-amber-700 hover:bg-white transition-all"
-                    :title="event.status === 'Aktif' ? 'Nonaktifkan event' : 'Aktifkan event'"
-                    :disabled="store.isSubmitting"
-                    @click="handleToggleStatus(event)"
-                  >
-                    <i :class="event.status === 'Aktif' ? 'fa-solid fa-ban' : 'fa-solid fa-rotate-left'" class="text-xs" />
-                  </button>
-                  <button
-                    type="button"
-                    class="h-8 w-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-rose-700 hover:bg-white transition-all"
-                    title="Hapus event"
-                    @click="handleDelete(event)"
-                  >
-                    <i class="fa-solid fa-trash-can text-xs" />
-                  </button>
-                </div>
+                    {{ regStore.participantsByEvent[event.id].length }}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  class="h-12 px-3 rounded-xl border-2 border-emerald-200 bg-emerald-50 text-emerald-700 font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                  title="Edit event"
+                  :disabled="store.isSubmitting"
+                  @click="openEdit(event)"
+                >
+                  <i class="fa-solid fa-pen-to-square" />
+                  <span>Edit</span>
+                </button>
+                <button
+                  v-if="event.status === 'Aktif' || event.status === 'Dibatalkan'"
+                  type="button"
+                  class="h-12 px-3 rounded-xl border-2 border-amber-200 bg-amber-50 text-amber-700 font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                  :title="event.status === 'Aktif' ? 'Nonaktifkan event' : 'Aktifkan event'"
+                  :disabled="store.isSubmitting"
+                  @click="handleToggleStatus(event)"
+                >
+                  <i :class="event.status === 'Aktif' ? 'fa-solid fa-ban' : 'fa-solid fa-rotate-left'" />
+                  <span>{{ event.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan' }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="h-12 px-3 rounded-xl border-2 border-rose-200 bg-rose-50 text-rose-700 font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                  title="Hapus event"
+                  @click="handleDelete(event)"
+                >
+                  <i class="fa-solid fa-trash-can" />
+                  <span>Hapus</span>
+                </button>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- ============ Pagination ============ -->
+      <!-- ============ Pagination ============
+           Tombol lebih besar di mobile (min-h-12) supaya
+           nyaman untuk pengguna lanjut usia. -->
       <div
         v-if="shouldShowPagination"
-        class="flex items-center justify-center gap-2 pt-2"
+        class="flex items-center justify-center gap-3 pt-2"
       >
         <button
           :disabled="!store.pagination.hasPrevPage"
-          class="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all"
+          class="min-h-[48px] min-w-[48px] px-4 rounded-xl border-2 border-slate-200 bg-white text-slate-600 text-sm font-bold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 active:scale-[0.98] transition-all"
           @click="changePage(store.pagination.page - 1)"
         >
           <i class="fa-solid fa-chevron-left text-xs" />
+          <span class="hidden sm:inline">Sebelumnya</span>
         </button>
-        <div class="text-xs font-semibold text-slate-600 px-3">
+        <div class="text-sm font-semibold text-slate-600 px-3 py-2 bg-slate-50 rounded-xl border border-slate-200">
           Halaman <span class="text-emerald-700 font-extrabold">{{ store.pagination.page }}</span>
-          dari <span>{{ store.pagination.totalPages }}</span>
+          dari <span class="font-bold text-slate-800">{{ store.pagination.totalPages }}</span>
         </div>
         <button
           :disabled="!store.pagination.hasNextPage"
-          class="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all"
+          class="min-h-[48px] min-w-[48px] px-4 rounded-xl border-2 border-slate-200 bg-white text-slate-600 text-sm font-bold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 active:scale-[0.98] transition-all"
           @click="changePage(store.pagination.page + 1)"
         >
+          <span class="hidden sm:inline">Berikutnya</span>
           <i class="fa-solid fa-chevron-right text-xs" />
         </button>
       </div>
