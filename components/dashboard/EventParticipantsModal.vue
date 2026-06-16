@@ -164,26 +164,43 @@ watch(
  * Label pendek untuk tab filter status. Ditaruh di computed
  * supaya template tidak dipenuhi string panjang.
  */
-const FILTER_TABS: { key: StatusFilter; label: string; tone: string }[] = [
-  { key: 'all', label: 'Semua', tone: 'slate' },
-  { key: 'pending', label: 'Belum Hadir', tone: 'amber' },
-  { key: 'present', label: 'Hadir', tone: 'emerald' },
-  { key: 'absent', label: 'Tidak Hadir', tone: 'rose' },
-]
+/**
+ * Label untuk filter status (dipakai di empty-state & aria-label).
+ * Ditaruh sebagai map ringkas supaya template tidak dipenuhi
+ * string panjang.
+ */
+const FILTER_LABEL: Record<StatusFilter, string> = {
+  all: 'Semua',
+  pending: 'Belum Hadir',
+  present: 'Hadir',
+  absent: 'Tidak Hadir',
+}
 
-function tabClass(tab: { key: StatusFilter; tone: string }): string {
-  const active = statusFilter.value === tab.key
-  const base = 'min-h-[44px] px-3 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] border-2'
-  if (!active) {
-    return `${base} bg-white text-slate-600 border-slate-200 hover:bg-slate-50`
+/**
+ * Style untuk stat-card yang juga berfungsi sebagai filter tab.
+ * Card aktif = filled sesuai tone, card idle = outlined soft.
+ * min-h-[64px] di mobile / 72px di desktop supaya tap target
+ * tetap nyaman (di atas standar 48px).
+ */
+function statCardClass(key: StatusFilter): string {
+  const active = statusFilter.value === key
+  const base = 'min-h-[64px] sm:min-h-[72px] rounded-xl p-2 transition-all border-2 active:scale-[0.97] flex flex-col items-center justify-center'
+  if (active) {
+    const filledMap: Record<StatusFilter, string> = {
+      all: 'bg-slate-700 text-white border-slate-700',
+      pending: 'bg-amber-500 text-white border-amber-500',
+      present: 'bg-emerald-600 text-white border-emerald-600',
+      absent: 'bg-rose-600 text-white border-rose-600',
+    }
+    return `${base} ${filledMap[key]}`
   }
-  const toneMap: Record<string, string> = {
-    slate: 'bg-slate-700 text-white border-slate-700',
-    amber: 'bg-amber-500 text-white border-amber-500',
-    emerald: 'bg-emerald-600 text-white border-emerald-600',
-    rose: 'bg-rose-600 text-white border-rose-600',
+  const idleMap: Record<StatusFilter, string> = {
+    all: 'bg-slate-50 border-slate-200 hover:bg-slate-100',
+    pending: 'bg-amber-50 border-amber-200 hover:bg-amber-100',
+    present: 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100',
+    absent: 'bg-rose-50 border-rose-200 hover:bg-rose-100',
   }
-  return `${base} ${toneMap[tab.tone] ?? toneMap.slate}`
+  return `${base} ${idleMap[key]}`
 }
 </script>
 
@@ -195,53 +212,50 @@ function tabClass(tab: { key: StatusFilter; tone: string }): string {
     max-width="max-w-2xl"
   >
     <div v-if="event" class="p-4 sm:p-6 space-y-4">
-      <!-- ============ Stats ringkas ============ -->
-      <div class="grid grid-cols-4 gap-2">
-        <div class="bg-slate-50 border-2 border-slate-200 rounded-xl p-2.5 text-center">
-          <p class="text-[10px] font-extrabold text-slate-500 uppercase">Total</p>
-          <p class="font-extrabold text-slate-800 text-2xl mt-0.5">{{ counts.total }}</p>
-        </div>
-        <div class="bg-amber-50 border-2 border-amber-200 rounded-xl p-2.5 text-center">
-          <p class="text-[10px] font-extrabold text-amber-700 uppercase">Belum</p>
-          <p class="font-extrabold text-amber-700 text-2xl mt-0.5">{{ counts.terdaftar }}</p>
-        </div>
-        <div class="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-2.5 text-center">
-          <p class="text-[10px] font-extrabold text-emerald-700 uppercase">Hadir</p>
-          <p class="font-extrabold text-emerald-700 text-2xl mt-0.5">{{ counts.hadir }}</p>
-        </div>
-        <div class="bg-rose-50 border-2 border-rose-200 rounded-xl p-2.5 text-center">
-          <p class="text-[10px] font-extrabold text-rose-700 uppercase">Absen</p>
-          <p class="font-extrabold text-rose-700 text-2xl mt-0.5">{{ counts.tidakHadir }}</p>
-        </div>
-      </div>
-
-      <!-- ============ Filter tabs (Belum Hadir sebagai default) ============
-           4 tab full-width di mobile (grid 2x2), inline di desktop.
-           Sentuh 44px (min-h-[44px]), font 14px, label jelas. -->
-      <div class="grid grid-cols-2 sm:flex sm:flex-wrap gap-2" role="tablist">
+      <!-- ============ Stats sekaligus filter ============
+           4 stat card clickable yang juga berfungsi sebagai filter
+           tab. Tap card = filter list sesuai status. Tidak ada duplikasi
+           informasi — angka dan filter jadi satu. -->
+      <div class="grid grid-cols-4 gap-2" role="tablist">
         <button
-          v-for="tab in FILTER_TABS"
-          :key="tab.key"
           type="button"
           role="tab"
-          :aria-selected="statusFilter === tab.key"
-          :class="tabClass(tab)"
-          @click="statusFilter = tab.key"
+          :aria-selected="statusFilter === 'all'"
+          :class="statCardClass('all')"
+          @click="statusFilter = 'all'"
         >
-          <span>{{ tab.label }}</span>
-          <span
-            :class="[
-              'text-xs font-extrabold px-1.5 py-0.5 rounded-md',
-              statusFilter === tab.key ? 'bg-white/20' : 'bg-slate-100 text-slate-600',
-            ]"
-          >
-            {{
-              tab.key === 'all' ? counts.total :
-              tab.key === 'pending' ? counts.terdaftar :
-              tab.key === 'present' ? counts.hadir :
-              counts.tidakHadir
-            }}
-          </span>
+          <p class="text-[10px] font-extrabold text-slate-500 uppercase">Total</p>
+          <p class="font-extrabold text-slate-800 text-2xl mt-0.5">{{ counts.total }}</p>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="statusFilter === 'pending'"
+          :class="statCardClass('pending')"
+          @click="statusFilter = 'pending'"
+        >
+          <p :class="['text-[10px] font-extrabold uppercase', statusFilter === 'pending' ? 'text-white' : 'text-amber-700']">Belum</p>
+          <p :class="['font-extrabold text-2xl mt-0.5', statusFilter === 'pending' ? 'text-white' : 'text-amber-700']">{{ counts.terdaftar }}</p>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="statusFilter === 'present'"
+          :class="statCardClass('present')"
+          @click="statusFilter = 'present'"
+        >
+          <p :class="['text-[10px] font-extrabold uppercase', statusFilter === 'present' ? 'text-white' : 'text-emerald-700']">Hadir</p>
+          <p :class="['font-extrabold text-2xl mt-0.5', statusFilter === 'present' ? 'text-white' : 'text-emerald-700']">{{ counts.hadir }}</p>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="statusFilter === 'absent'"
+          :class="statCardClass('absent')"
+          @click="statusFilter = 'absent'"
+        >
+          <p :class="['text-[10px] font-extrabold uppercase', statusFilter === 'absent' ? 'text-white' : 'text-rose-700']">Absen</p>
+          <p :class="['font-extrabold text-2xl mt-0.5', statusFilter === 'absent' ? 'text-white' : 'text-rose-700']">{{ counts.tidakHadir }}</p>
         </button>
       </div>
 
@@ -268,7 +282,7 @@ function tabClass(tab: { key: StatusFilter; tone: string }): string {
           <p class="text-base font-semibold">
             {{
               statusFilter !== 'all'
-                ? `Tidak ada peserta di status "${FILTER_TABS.find((t) => t.key === statusFilter)?.label}".`
+                ? `Tidak ada peserta di status "${FILTER_LABEL[statusFilter]}".`
                 : participants.length === 0
                   ? 'Belum ada peserta yang mendaftar untuk event ini.'
                   : 'Tidak ada hasil pencarian.'
