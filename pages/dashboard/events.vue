@@ -116,6 +116,37 @@ const filteredEvents = computed<Event[]>(() => {
   return list.filter((e) => matchesPeriod(e.date))
 })
 
+/**
+ * Show pagination only when it is actually useful for the current
+ * visible (post-filter) list.
+ *
+ * Three signals are considered:
+ *  1. `store.isLoading`  → hide while loading.
+ *  2. `filteredEvents.length`  → the count after the status tab AND
+ *     the period filter have been applied. If this is small enough
+ *     to fit on a single page relative to the current page index,
+ *     there is no second page to navigate to, so we hide the pager.
+ *  3. `m.hasPrevPage`    → we are already past page 1, so the user
+ *     needs a way to go back; show the pager.
+ *
+ * This handles the bug where the server reports `total = 11+` (so
+ * `totalPages = 2` and `hasNextPage = true`) but the client-side
+ * period filter leaves only 1 event on screen — without this guard
+ * the pager would misleadingly show "Halaman 1 dari 2" with no
+ * useful second page.
+ */
+const shouldShowPagination = computed<boolean>(() => {
+  if (store.isLoading) return false
+  const m = store.pagination
+  // If we are past page 1, the pager is the only way to go back.
+  if (m.hasPrevPage) return true
+  // If the visible (post-filter) list is shorter than (or equal to)
+  // the page size, everything fits on a single page → hide pager.
+  if (filteredEvents.value.length <= m.limit) return false
+  // Otherwise only show if the server truly reports more pages.
+  return m.hasNextPage
+})
+
 // Counter for the status tabs. Counts use the master `store.events`
 // so the tab numbers are stable regardless of the period filter
 // (period is a "view filter", not a count).
@@ -368,15 +399,38 @@ function categoryNameFor(categoryId: string | null): string | null {
 
       <!-- ============ Tabel Event (rapih & menarik) ============ -->
       <div v-else class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <!-- Header Tabel (desktop only) -->
-        <div class="hidden md:grid grid-cols-12 gap-3 px-5 py-3 bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">
-          <div class="col-span-4">Event</div>
-          <div class="col-span-2">Tanggal</div>
-          <div class="col-span-1">Lokasi</div>
-          <div class="col-span-2">Kategori</div>
-          <div class="col-span-1 text-center">Kuota</div>
-          <div class="col-span-1 text-center">Status</div>
-          <div class="col-span-1 text-right">Aksi</div>
+        <!-- Header Tabel (desktop only). Pakai icon kecil di tiap
+             kolom supaya baseline visual header sejajar dengan row
+             (row juga pakai icon di cell-nya). -->
+        <div class="hidden md:grid grid-cols-[minmax(0,3.5fr)_minmax(0,1.6fr)_minmax(0,1.4fr)_minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.4fr)] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">
+          <div class="flex items-center gap-1.5">
+            <i class="fa-solid fa-calendar-day text-slate-400" />
+            <span>Event</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <i class="fa-solid fa-clock text-slate-400" />
+            <span>Tanggal</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <i class="fa-solid fa-location-dot text-slate-400" />
+            <span>Lokasi</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <i class="fa-solid fa-tag text-slate-400" />
+            <span>Kategori</span>
+          </div>
+          <div class="flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-users text-slate-400" />
+            <span>Kuota</span>
+          </div>
+          <div class="flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-circle-check text-slate-400" />
+            <span>Status</span>
+          </div>
+          <div class="flex items-center justify-end gap-1.5">
+            <i class="fa-solid fa-gear text-slate-400" />
+            <span>Aksi</span>
+          </div>
         </div>
 
         <!-- Rows -->
@@ -384,12 +438,14 @@ function categoryNameFor(categoryId: string | null): string | null {
           <div
             v-for="event in filteredEvents"
             :key="event.id"
-            class="p-4 md:px-5 md:py-3 hover:bg-slate-50/60 transition-colors"
+            class="px-5 py-3 hover:bg-slate-50/60 transition-colors"
           >
-            <!-- Desktop: 1 baris grid -->
-            <div class="hidden md:grid grid-cols-12 gap-3 items-center">
+            <!-- Desktop: 1 baris grid. Pakai grid template yang sama
+                 persis dengan header (kolom 7-col) supaya sejajar
+                 sempurna secara horizontal. -->
+            <div class="hidden md:grid grid-cols-[minmax(0,3.5fr)_minmax(0,1.6fr)_minmax(0,1.4fr)_minmax(0,1.6fr)_minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.4fr)] gap-4 items-center">
               <!-- Event: avatar + judul + id -->
-              <div class="col-span-4 flex items-center gap-3 min-w-0">
+              <div class="flex items-center gap-3 min-w-0">
                 <div class="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 shrink-0 relative border border-slate-200">
                   <div
                     v-if="!imageLoadMap[event.id] && resolveEventImage(event.image)"
@@ -422,52 +478,42 @@ function categoryNameFor(categoryId: string | null): string | null {
               </div>
 
               <!-- Tanggal -->
-              <div class="col-span-2 min-w-0">
-                <div class="text-xs font-bold text-slate-700">
-                  <i class="fa-solid fa-calendar text-emerald-500 mr-1" />
-                  {{ formatDay(event.date) }}
-                </div>
-                <div class="text-[10px] text-slate-500 mt-0.5">
-                  <i class="fa-regular fa-clock text-slate-400 mr-1" />
-                  {{ formatTime(event.date) }} WIB
-                </div>
+              <div class="min-w-0 leading-tight">
+                <div class="text-xs font-bold text-slate-800">{{ formatDay(event.date) }}</div>
+                <div class="text-[10px] text-slate-500 mt-0.5">{{ formatTime(event.date) }} WIB</div>
               </div>
 
               <!-- Lokasi -->
-              <div class="col-span-1 min-w-0">
-                <p class="text-xs text-slate-700 truncate flex items-center gap-1">
-                  <i class="fa-solid fa-location-dot text-rose-400 shrink-0" />
-                  <span class="truncate">{{ event.location }}</span>
+              <div class="min-w-0">
+                <p class="text-xs text-slate-700 truncate" :title="event.location">
+                  {{ event.location }}
                 </p>
               </div>
 
               <!-- Kategori -->
-              <div class="col-span-2 min-w-0">
+              <div class="min-w-0">
                 <span
                   v-if="categoryNameFor(event.categoryId)"
-                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200 max-w-full"
+                  class="inline-flex max-w-full items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200 truncate"
                 >
-                  <i class="fa-solid fa-tag text-[9px] shrink-0" />
-                  <span class="truncate">{{ categoryNameFor(event.categoryId) }}</span>
+                  {{ categoryNameFor(event.categoryId) }}
                 </span>
                 <span
                   v-else
-                  class="text-[10px] text-slate-400 italic"
+                  class="text-[11px] text-slate-400 italic"
                 >
                   —
                 </span>
               </div>
 
               <!-- Kuota -->
-              <div class="col-span-1 text-center">
-                <span class="text-xs font-extrabold text-slate-700">
-                  {{ event.quota }}
-                </span>
-                <div class="text-[9px] text-slate-400 uppercase font-bold">Slot</div>
+              <div class="text-center">
+                <span class="text-sm font-extrabold text-slate-800">{{ event.quota }}</span>
+                <span class="text-[10px] text-slate-400 font-bold ml-0.5">slot</span>
               </div>
 
               <!-- Status -->
-              <div class="col-span-1 flex justify-center">
+              <div class="flex justify-center">
                 <span
                   :class="['inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border', statusStyle(event.status).badge]"
                 >
@@ -477,7 +523,7 @@ function categoryNameFor(categoryId: string | null): string | null {
               </div>
 
               <!-- Aksi -->
-              <div class="col-span-1 flex items-center justify-end gap-1">
+              <div class="flex items-center justify-end gap-1">
                 <button
                   type="button"
                   class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 border border-slate-200 transition-all relative"
@@ -521,101 +567,119 @@ function categoryNameFor(categoryId: string | null): string | null {
                 </button>
               </div>
             </div>
-            <!-- Mobile: card view -->
-            <div class="md:hidden flex gap-3">
-              <div class="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 shrink-0 relative border border-slate-200">
-                <div
-                  v-if="!imageLoadMap[event.id] && resolveEventImage(event.image)"
-                  class="absolute inset-0 animate-pulse bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100"
-                />
-                <img
-                  v-if="resolveEventImage(event.image)"
-                  :src="resolveEventImage(event.image)"
-                  :alt="event.title"
-                  class="w-full h-full object-cover"
-                  :class="imageLoadMap[event.id] ? 'opacity-100' : 'opacity-0'"
-                  @load="imageLoadMap[event.id] = true"
-                  @error="imageLoadMap[event.id] = true"
-                >
-                <div
-                  v-else
-                  class="w-full h-full flex items-center justify-center text-slate-300"
-                >
-                  <i class="fa-solid fa-image" />
+            <!-- Mobile: card view. Padding tetap ada di row, jadi
+                 di sini cukup layout isinya. Avatar + meta sejajar
+                 dengan baseline. Action row pakai icon-only button
+                 supaya muat di layar sempit. -->
+            <div class="md:hidden space-y-3">
+              <!-- Header: avatar + judul + status -->
+              <div class="flex gap-3">
+                <div class="w-14 h-14 rounded-xl overflow-hidden bg-slate-100 shrink-0 relative border border-slate-200">
+                  <div
+                    v-if="!imageLoadMap[event.id] && resolveEventImage(event.image)"
+                    class="absolute inset-0 animate-pulse bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100"
+                  />
+                  <img
+                    v-if="resolveEventImage(event.image)"
+                    :src="resolveEventImage(event.image)"
+                    :alt="event.title"
+                    class="w-full h-full object-cover"
+                    :class="imageLoadMap[event.id] ? 'opacity-100' : 'opacity-0'"
+                    @load="imageLoadMap[event.id] = true"
+                    @error="imageLoadMap[event.id] = true"
+                  >
+                  <div
+                    v-else
+                    class="w-full h-full flex items-center justify-center text-slate-300"
+                  >
+                    <i class="fa-solid fa-image text-base" />
+                  </div>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-start justify-between gap-2">
+                    <h3 class="font-bold text-slate-900 text-sm leading-snug line-clamp-2 min-w-0">
+                      {{ event.title }}
+                    </h3>
+                    <span
+                      :class="['inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0', statusStyle(event.status).badge]"
+                    >
+                      <span :class="['w-1.5 h-1.5 rounded-full', statusStyle(event.status).dot]" />
+                      {{ statusStyle(event.status).label }}
+                    </span>
+                  </div>
+                  <p class="mt-1 text-[10px] text-slate-400 font-mono">
+                    ID: {{ event.id.slice(0, 8) }}…
+                  </p>
                 </div>
               </div>
-              <div class="flex-grow min-w-0">
-                <div class="flex items-start justify-between gap-2">
-                  <h3 class="font-bold text-slate-900 text-sm leading-snug line-clamp-2 min-w-0">
-                    {{ event.title }}
-                  </h3>
-                  <span
-                    :class="['inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0', statusStyle(event.status).badge]"
-                  >
-                    <span :class="['w-1.5 h-1.5 rounded-full', statusStyle(event.status).dot]" />
-                    {{ statusStyle(event.status).label }}
+
+              <!-- Meta: list vertikal ringkas (icon + text), sama
+                   seperti versi sebelumnya supaya konsisten & mudah
+                   di-scan di mobile. -->
+              <div class="space-y-1 text-[11px] text-slate-600">
+                <div class="flex items-center gap-1.5 truncate">
+                  <i class="fa-solid fa-calendar text-emerald-500 w-3 text-center" />
+                  <span class="truncate">{{ formatShortDate(event.date) }}</span>
+                </div>
+                <div class="flex items-center gap-1.5 truncate">
+                  <i class="fa-solid fa-location-dot text-rose-400 w-3 text-center" />
+                  <span class="truncate">{{ event.location }}</span>
+                </div>
+                <div class="flex items-center gap-1.5 truncate">
+                  <i class="fa-solid fa-tag text-emerald-500 w-3 text-center" />
+                  <span class="truncate">
+                    {{ categoryNameFor(event.categoryId) ?? 'Tanpa kategori' }}
                   </span>
                 </div>
-                <div class="mt-1.5 space-y-0.5 text-[11px] text-slate-500">
-                  <div class="flex items-center gap-1.5 truncate">
-                    <i class="fa-solid fa-calendar text-emerald-500 w-3 text-center" />
-                    <span class="truncate">{{ formatShortDate(event.date) }}</span>
-                  </div>
-                  <div class="flex items-center gap-1.5 truncate">
-                    <i class="fa-solid fa-location-dot text-rose-400 w-3 text-center" />
-                    <span class="truncate">{{ event.location }}</span>
-                  </div>
-                  <div class="flex items-center gap-1.5 truncate">
-                    <i class="fa-solid fa-tag text-emerald-500 w-3 text-center" />
-                    <span class="truncate">
-                      {{ categoryNameFor(event.categoryId) ?? 'Tanpa kategori' }}
-                    </span>
-                  </div>
-                  <div class="flex items-center gap-1.5">
-                    <i class="fa-solid fa-user-group text-slate-400 w-3 text-center" />
-                    <span>Kuota {{ event.quota }} slot</span>
-                  </div>
+                <div class="flex items-center gap-1.5">
+                  <i class="fa-solid fa-user-group text-slate-400 w-3 text-center" />
+                  <span>Kuota {{ event.quota }} slot</span>
                 </div>
-                <div class="mt-2.5 flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    class="flex-1 py-1.5 rounded-lg text-[11px] font-bold border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-all flex items-center justify-center gap-1"
-                    @click="openParticipants(event)"
+              </div>
+
+              <!-- Action row: icon-only supaya muat di mobile -->
+              <div class="flex items-center justify-end gap-1.5 pt-1">
+                <button
+                  type="button"
+                  class="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 border border-slate-200 transition-all relative"
+                  title="Lihat & kelola peserta"
+                  @click="openParticipants(event)"
+                >
+                  <i class="fa-solid fa-users text-sm" />
+                  <span
+                    v-if="regStore.participantsByEvent[event.id]?.length"
+                    class="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-indigo-600 text-white text-[9px] font-extrabold rounded-full flex items-center justify-center"
                   >
-                    <i class="fa-solid fa-users" /> Peserta
-                    <span
-                      v-if="regStore.participantsByEvent[event.id]?.length"
-                      class="ml-1 px-1.5 py-0.5 rounded-md bg-indigo-600 text-white text-[9px] font-extrabold"
-                    >
-                      {{ regStore.participantsByEvent[event.id].length }}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    class="flex-1 py-1.5 rounded-lg text-[11px] font-bold border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-all flex items-center justify-center gap-1"
-                    :disabled="store.isSubmitting"
-                    @click="openEdit(event)"
-                  >
-                    <i class="fa-solid fa-pen-to-square" /> Edit
-                  </button>
-                  <button
-                    v-if="event.status === 'Aktif' || event.status === 'Dibatalkan'"
-                    type="button"
-                    class="flex-1 py-1.5 rounded-lg text-[11px] font-bold border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-all flex items-center justify-center gap-1"
-                    :disabled="store.isSubmitting"
-                    @click="handleToggleStatus(event)"
-                  >
-                    <i :class="event.status === 'Aktif' ? 'fa-solid fa-ban' : 'fa-solid fa-rotate-left'" />
-                    {{ event.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan' }}
-                  </button>
-                  <button
-                    type="button"
-                    class="py-1.5 px-2.5 rounded-lg text-[11px] font-bold border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 transition-all flex items-center justify-center gap-1"
-                    @click="handleDelete(event)"
-                  >
-                    <i class="fa-solid fa-trash-can" />
-                  </button>
-                </div>
+                    {{ regStore.participantsByEvent[event.id].length }}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  class="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-200 transition-all"
+                  title="Edit event"
+                  :disabled="store.isSubmitting"
+                  @click="openEdit(event)"
+                >
+                  <i class="fa-solid fa-pen-to-square text-sm" />
+                </button>
+                <button
+                  v-if="event.status === 'Aktif' || event.status === 'Dibatalkan'"
+                  type="button"
+                  class="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-amber-700 hover:bg-amber-50 border border-slate-200 transition-all"
+                  :title="event.status === 'Aktif' ? 'Nonaktifkan event' : 'Aktifkan event'"
+                  :disabled="store.isSubmitting"
+                  @click="handleToggleStatus(event)"
+                >
+                  <i :class="event.status === 'Aktif' ? 'fa-solid fa-ban' : 'fa-solid fa-rotate-left'" class="text-sm" />
+                </button>
+                <button
+                  type="button"
+                  class="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-rose-700 hover:bg-rose-50 border border-slate-200 transition-all"
+                  title="Hapus event"
+                  @click="handleDelete(event)"
+                >
+                  <i class="fa-solid fa-trash-can text-sm" />
+                </button>
               </div>
             </div>
           </div>
@@ -624,7 +688,7 @@ function categoryNameFor(categoryId: string | null): string | null {
 
       <!-- ============ Pagination ============ -->
       <div
-        v-if="!store.isLoading && store.pagination.totalPages > 1"
+        v-if="shouldShowPagination"
         class="flex items-center justify-center gap-2 pt-2"
       >
         <button
