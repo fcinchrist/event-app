@@ -201,9 +201,9 @@ onMounted(async () => {
         <div>
           <div class="flex items-center gap-2 mb-1">
             <span class="w-1.5 h-6 rounded-full bg-emerald-500" />
-            <h2 class="font-extrabold text-2xl text-emerald-700">Master User</h2>
+            <h2 class="font-extrabold text-xl sm:text-2xl text-emerald-700">Master User</h2>
           </div>
-          <p class="text-xs text-slate-500">
+          <p class="text-sm sm:text-xs text-slate-500">
             Daftar seluruh user yang pernah mendaftar di event
             {{ config.public.companyName }}. Klik kartu untuk melihat
             event yang pernah diikuti.
@@ -216,7 +216,7 @@ onMounted(async () => {
           </div>
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-sm transition-colors"
+            class="w-full sm:w-auto min-h-[48px] inline-flex items-center justify-center gap-2 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-sm font-extrabold shadow-sm transition-all"
             @click="openAddModal"
           >
             <i class="fa-solid fa-user-plus" />
@@ -225,22 +225,24 @@ onMounted(async () => {
         </div>
       </header>
 
-      <!-- ============ Toolbar: Search + Counter ============ -->
+      <!-- ============ Toolbar: Search + Counter ============
+           Search bar dibuat lebih besar di mobile (h-12, text 15px)
+           supaya mudah dipakai pengguna lanjut usia. -->
       <div class="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
         <div class="flex flex-col sm:flex-row sm:items-center gap-3">
           <div class="relative flex-grow">
-            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base pointer-events-none" />
             <input
               v-model="searchQuery"
               type="text"
               placeholder="Cari nama atau nomor HP…"
-              class="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50"
+              class="w-full min-h-[48px] pl-11 pr-4 py-2.5 text-[15px] sm:text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50"
               @input="onSearchInput"
             >
           </div>
-          <div class="text-xs text-slate-500 sm:text-right">
+          <div class="text-sm sm:text-xs text-slate-500 sm:text-right px-1">
             Total
-            <span class="text-emerald-700 font-extrabold">{{ store.totalUsers }}</span>
+            <span class="text-emerald-700 font-extrabold text-base sm:text-sm">{{ store.totalUsers }}</span>
             user terdaftar
           </div>
         </div>
@@ -395,117 +397,139 @@ onMounted(async () => {
         </div>
 
         <!-- Rows (mobile).
-             Wrapper pakai `space-y-2` (mobile) supaya tiap kartu user
-             punya jarak jelas, dan `md:hidden divide-y` (desktop)
-             tetap rapat. Avatar lebih besar (w-14 h-14) supaya proporsi
-             dengan info di kanannya. Action row dipisah dengan border-top
-             supaya tidak mepet ke badge di atasnya. -->
-        <div class="md:hidden space-y-2 p-2">
+             Dirancang untuk pengguna lanjut usia — avatar 64px,
+             judul 16px, meta dalam kartu, tombol full-width 48px.
+             Avatar di tap = buka detail user. -->
+        <div class="md:hidden space-y-3 p-1">
           <div
             v-for="user in store.users"
             :key="`m-${user.id}`"
-            class="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex gap-3"
+            class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden"
           >
-            <button
-              type="button"
-              class="w-14 h-14 rounded-full flex items-center justify-center font-extrabold text-base shrink-0 ring-2 ring-white shadow-sm"
-              :class="avatarColor(user.id)"
-              @click="goToDetail(user.id)"
-            >
-              {{ initialsOf(user.nama) }}
-            </button>
-            <div class="flex-grow min-w-0">
-              <button
-                type="button"
-                class="w-full flex items-start justify-between gap-2 text-left"
-                @click="goToDetail(user.id)"
-              >
-                <h3 class="font-bold text-slate-900 text-sm leading-snug line-clamp-2 min-w-0">
-                  {{ user.nama }}
-                </h3>
-                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-extrabold border border-indigo-100 shrink-0">
-                  <i class="fa-solid fa-calendar-check text-[9px]" aria-hidden="true" />
-                  {{ registrationCountByUser[user.id] ?? '…' }}
-                </span>
-              </button>
-              <div class="mt-1.5 space-y-1 text-[11px] text-slate-500">
-                <p class="font-mono truncate flex items-center gap-1.5">
-                  <i class="fa-brands fa-whatsapp text-emerald-500 w-3 text-center" aria-hidden="true" />
-                  {{ user.noHp }}
-                </p>
-                <p class="flex items-center gap-1.5">
-                  <i class="fa-regular fa-calendar text-slate-400 w-3 text-center" aria-hidden="true" />
-                  {{ formatCreated(user.createdAt) }}
-                </p>
+            <div class="p-4 space-y-3">
+              <!-- Header: avatar besar + nama + counter event -->
+              <div class="flex gap-4">
+                <button
+                  type="button"
+                  class="w-16 h-16 rounded-full flex items-center justify-center font-extrabold text-lg shrink-0 ring-2 ring-white shadow-sm active:scale-95 transition-transform"
+                  :class="avatarColor(user.id)"
+                  @click="goToDetail(user.id)"
+                >
+                  {{ initialsOf(user.nama) }}
+                </button>
+                <div class="flex-1 min-w-0">
+                  <button
+                    type="button"
+                    class="w-full text-left"
+                    @click="goToDetail(user.id)"
+                  >
+                    <h3 class="font-bold text-slate-900 text-base leading-snug line-clamp-2">
+                      {{ user.nama }}
+                    </h3>
+                  </button>
+                  <div class="mt-1.5">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-extrabold border border-indigo-200">
+                      <i class="fa-solid fa-calendar-check" aria-hidden="true" />
+                      {{ registrationCountByUser[user.id] ?? '…' }}
+                      <span class="text-indigo-500 font-bold">event</span>
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+
+              <!-- Meta dalam kartu agar tidak tercerai-berai -->
+              <div class="bg-slate-50 rounded-xl p-3 space-y-2 text-sm text-slate-700">
+                <div class="flex items-center gap-2">
+                  <i class="fa-brands fa-whatsapp text-emerald-500 w-4 text-center shrink-0" aria-hidden="true" />
+                  <span class="font-mono truncate">{{ user.noHp }}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <i class="fa-regular fa-calendar text-slate-500 w-4 text-center shrink-0" aria-hidden="true" />
+                  <span>Terdaftar {{ formatCreated(user.createdAt) }}</span>
+                </div>
+              </div>
+
+              <!-- Status & tipe user -->
+              <div class="flex flex-wrap items-center gap-1.5">
                 <span
                   :class="[
-                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border',
+                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border',
                     statusStyle(user.userStatus).badge,
                   ]"
                 >
-                  <span :class="['w-1.5 h-1.5 rounded-full', statusStyle(user.userStatus).dot]" />
+                  <span :class="['w-2 h-2 rounded-full', statusStyle(user.userStatus).dot]" />
                   {{ USER_STATUS_LABELS[user.userStatus] }}
                 </span>
                 <span
                   :class="[
-                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border',
+                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border',
                     memberStyle(user.memberType).badge,
                   ]"
                 >
-                  <span :class="['w-1.5 h-1.5 rounded-full', memberStyle(user.memberType).dot]" />
+                  <span :class="['w-2 h-2 rounded-full', memberStyle(user.memberType).dot]" />
                   {{ MEMBER_TYPE_LABELS[user.memberType] }}
                 </span>
               </div>
 
-              <!-- Action row: dipisah dengan border-top supaya tidak
-                   mepet ke badge. Tombol pakai container bg-slate-50
-                   agar lebih jelas grouping-nya. -->
-              <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-end gap-1.5">
-                <div class="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-0.5">
-                  <button
-                    type="button"
-                    class="h-8 px-3 rounded-lg flex items-center gap-1.5 text-[11px] font-bold text-amber-700 hover:bg-white transition-all"
-                    @click="openEditModal(user)"
-                  >
-                    <i class="fa-solid fa-pen text-xs" aria-hidden="true" /> Edit
-                  </button>
-                  <button
-                    type="button"
-                    class="h-8 px-3 rounded-lg flex items-center gap-1.5 text-[11px] font-bold text-rose-700 hover:bg-white transition-all"
-                    @click="askDelete(user)"
-                  >
-                    <i class="fa-solid fa-trash text-xs" aria-hidden="true" /> Hapus
-                  </button>
-                </div>
-              </div>
+              <!-- Tombol Detail: full-width sebagai primary action -->
+              <button
+                type="button"
+                class="w-full min-h-[48px] px-4 rounded-xl border-2 border-slate-200 bg-white text-slate-700 font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] active:bg-slate-50 transition-all"
+                @click="goToDetail(user.id)"
+              >
+                <i class="fa-solid fa-id-card" />
+                <span>Lihat Detail & Riwayat</span>
+              </button>
+            </div>
+
+            <!-- Action row: 2 tombol berwarna, full-width 48px -->
+            <div class="grid grid-cols-2 border-t-2 border-slate-100">
+              <button
+                type="button"
+                class="h-12 px-3 text-amber-700 font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] active:bg-amber-50 transition-all border-r-2 border-slate-100"
+                @click="openEditModal(user)"
+              >
+                <i class="fa-solid fa-pen" aria-hidden="true" />
+                <span>Edit</span>
+              </button>
+              <button
+                type="button"
+                class="h-12 px-3 text-rose-700 font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] active:bg-rose-50 transition-all"
+                @click="askDelete(user)"
+              >
+                <i class="fa-solid fa-trash" aria-hidden="true" />
+                <span>Hapus</span>
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- ============ Pagination ============ -->
+      <!-- ============ Pagination ============
+           Tombol lebih besar di mobile (min-h-12) supaya
+           nyaman untuk pengguna lanjut usia. -->
       <div
         v-if="!store.isLoadingList && store.totalPages > 1"
-        class="flex items-center justify-center gap-2 pt-2"
+        class="flex items-center justify-center gap-3 pt-2"
       >
         <button
           :disabled="store.page <= 1"
-          class="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all"
+          class="min-h-[48px] min-w-[48px] px-4 rounded-xl border-2 border-slate-200 bg-white text-slate-600 text-sm font-bold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 active:scale-[0.98] transition-all"
           @click="changePage(store.page - 1)"
         >
           <i class="fa-solid fa-chevron-left text-xs" />
+          <span class="hidden sm:inline">Sebelumnya</span>
         </button>
-        <div class="text-xs font-semibold text-slate-600 px-3">
+        <div class="text-sm font-semibold text-slate-600 px-3 py-2 bg-slate-50 rounded-xl border border-slate-200">
           Halaman <span class="text-emerald-700 font-extrabold">{{ store.page }}</span>
-          dari <span>{{ store.totalPages }}</span>
+          dari <span class="font-bold text-slate-800">{{ store.totalPages }}</span>
         </div>
         <button
           :disabled="store.page >= store.totalPages"
-          class="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all"
+          class="min-h-[48px] min-w-[48px] px-4 rounded-xl border-2 border-slate-200 bg-white text-slate-600 text-sm font-bold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 active:scale-[0.98] transition-all"
           @click="changePage(store.page + 1)"
         >
+          <span class="hidden sm:inline">Berikutnya</span>
           <i class="fa-solid fa-chevron-right text-xs" />
         </button>
       </div>

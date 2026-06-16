@@ -21,6 +21,13 @@ const config = useRuntimeConfig()
 
 const showAddModal = ref(false)
 
+// Filter periode dibuat collapsible di mobile supaya tidak mepet
+// ke KPI cards. Default tertutup — tap untuk buka.
+const showPeriodFilter = ref(false)
+function togglePeriodFilter(): void {
+  showPeriodFilter.value = !showPeriodFilter.value
+}
+
 // Dashboard navigation menu. Each URL is independent so they can be
 // bookmarked and shared directly.
 const NAV_ITEMS = [
@@ -177,33 +184,73 @@ onMounted(async () => {
         <div>
           <div class="flex items-center gap-2 mb-1">
             <span class="w-1.5 h-6 rounded-full bg-emerald-500" />
-            <h2 class="font-extrabold text-2xl text-emerald-700">Ringkasan Dashboard</h2>
+            <h2 class="font-extrabold text-xl sm:text-2xl text-emerald-700">Ringkasan Dashboard</h2>
           </div>
-          <p class="text-xs text-slate-500">
+          <p class="text-sm sm:text-xs text-slate-500">
             Statistik dan agenda terbaru komunitas {{ config.public.companyName }}.
           </p>
           <!-- Badge periode aktif (selalu terlihat di header) -->
-          <div class="mt-2 inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg text-[11px] font-semibold">
+          <div class="mt-2 inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg text-sm sm:text-[11px] font-semibold border border-emerald-200">
             <i class="fa-solid fa-filter" />
             Periode aktif: {{ periodLabel }}
           </div>
         </div>
-        <UiAppButton variant="primary" @click="openAdd">
-          <i class="fa-solid fa-plus-circle" /> Buat Event Baru
-        </UiAppButton>
+        <button
+          type="button"
+          class="w-full sm:w-auto min-h-[48px] inline-flex items-center justify-center gap-2 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-sm font-extrabold shadow-sm transition-all"
+          @click="openAdd"
+        >
+          <i class="fa-solid fa-plus-circle" />
+          <span>Buat Event Baru</span>
+        </button>
       </header>
 
-      <!-- Filter periode (prominent, di paling atas summary) -->
-      <DashboardPeriodFilter
-        :model-value="store.period"
-        :is-loading="store.isRegistrationsLoading || store.isAttendanceLoading"
-        @update:model-value="(v) => store.period = v"
-        @apply="onApplyPeriod"
-      />
+      <!-- Filter periode (collapsible di mobile supaya tidak mepet
+           ke KPI). Default tertutup — tap untuk buka. Di desktop
+           selalu terbuka. -->
+      <div class="md:hidden">
+        <button
+          type="button"
+          class="w-full min-h-[48px] flex items-center justify-between gap-2 px-4 py-3 bg-white border-2 border-slate-200 rounded-xl active:scale-[0.99] transition-all"
+          :aria-expanded="showPeriodFilter"
+          @click="togglePeriodFilter"
+        >
+          <span class="flex items-center gap-2 text-sm font-bold text-slate-700">
+            <i class="fa-solid fa-sliders text-emerald-600" />
+            Filter Periode
+            <span class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md text-xs font-bold border border-emerald-200">
+              {{ periodLabel }}
+            </span>
+          </span>
+          <i
+            :class="['fa-solid fa-chevron-down text-slate-500 transition-transform', showPeriodFilter ? 'rotate-180' : '']"
+          />
+        </button>
+        <div v-show="showPeriodFilter" class="mt-3">
+          <DashboardPeriodFilter
+            :model-value="store.period"
+            :is-loading="store.isRegistrationsLoading || store.isAttendanceLoading"
+            @update:model-value="(v) => store.period = v"
+            @apply="onApplyPeriod"
+          />
+        </div>
+      </div>
 
-      <!-- KPI: 4 emerald cards, or skeleton while loading -->
+      <!-- Filter periode (desktop) -->
+      <div class="hidden md:block">
+        <DashboardPeriodFilter
+          :model-value="store.period"
+          :is-loading="store.isRegistrationsLoading || store.isAttendanceLoading"
+          @update:model-value="(v) => store.period = v"
+          @apply="onApplyPeriod"
+        />
+      </div>
+
+      <!-- KPI: 4 emerald cards, atau skeleton while loading.
+           Di mobile pakai 2 kolom (bukan 1) supaya lebih ringkas
+           dan proporsi kartu lebih pendek. -->
       <DashboardKpiSkeleton v-if="store.isRegistrationsLoading && store.periodRegistrations.length === 0" />
-      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div v-else class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <DashboardStatCard
           label="Total Event"
           :value="kpi.totalEvents"
