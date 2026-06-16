@@ -9,8 +9,8 @@ export interface OccupancyItem {
 interface Props {
   items: OccupancyItem[]
   /**
-   * Jumlah event per halaman. Default 5 (sesuai spek: "5/5").
-   * Atur ke 0 untuk disable pagination (tampilkan semua).
+   * Number of events per page. Default 5 (per spec: "5/5").
+   * Set to 0 to disable pagination (show all).
    */
   pageSize?: number
 }
@@ -25,9 +25,9 @@ function rateOf(item: OccupancyItem): number {
 }
 
 /**
- * Pagination client-side. Reset ke page=1 setiap kali `items`
- * berubah (mis. setelah refetch registrasi di periode lain)
- * supaya user tidak stuck di halaman kosong.
+ * Client-side pagination. Resets to page=1 whenever `items`
+ * changes (e.g. after a refetch of registrations in another
+ * period) so the user is never stranded on an empty page.
  */
 const currentPage = ref(1)
 
@@ -41,9 +41,9 @@ watch(
 const totalItems = computed(() => props.items.length)
 
 /**
- * Jumlah total halaman. Jika `pageSize` <= 0, tampilkan semua
- * (1 halaman virtual berisi seluruh items). Minimum 1 supaya
- * pager tidak menampilkan "Halaman 1 dari 0".
+ * Total number of pages. If `pageSize` <= 0, show everything
+ * (a virtual single page containing all items). Minimum 1 so
+ * the pager never renders "Page 1 of 0".
  */
 const totalPages = computed(() => {
   if (props.pageSize <= 0) return 1
@@ -65,7 +65,7 @@ const pageLabel = computed<string>(() => {
   if (props.pageSize <= 0) return `${totalItems.value} event`
   const start = (currentPage.value - 1) * props.pageSize + 1
   const end = Math.min(currentPage.value * props.pageSize, totalItems.value)
-  return `${start}–${end} dari ${totalItems.value}`
+  return `${start}–${end} of ${totalItems.value}`
 })
 
 function goPrev(): void {
@@ -107,10 +107,10 @@ function goNext(): void {
       </div>
     </div>
 
-    <!-- Footer: pagination (5/page) + label jumlah event. Pager
-         hanya tampil kalau pageSize > 0 dan total halaman > 1.
-         Tombol lebih besar (min-h-9) supaya tetap nyaman di
-         tap saat dipakai bareng section lain di mobile. -->
+    <!-- Footer: pagination (5/page) + event count label. The
+         pager is only shown when pageSize > 0 and the total
+         page count is > 1. Buttons are sized to remain tappable
+         on mobile when stacked next to other sections. -->
     <div
       v-if="totalItems > 0"
       class="flex items-center justify-between gap-2 border-t border-slate-100 pt-3"

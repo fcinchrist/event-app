@@ -9,10 +9,10 @@ interface Props {
   rows?: number
   helper?: string
   /**
-   * Jika `true`, input hanya menerima karakter digit (0–9).
-   * Karakter non-digit akan otomatis di-strip saat user mengetik.
-   * Bekerja untuk tipe 'text' dan 'tel' saja; diabaikan untuk
-   * tipe lain (number, date, dll).
+   * If `true`, the input only accepts digit characters (0–9).
+   * Non-digit characters are automatically stripped on every
+   * keystroke. Only effective for 'text' and 'tel' types; ignored
+   * for other input types (number, date, etc.).
    */
   digitsOnly?: boolean
 }
@@ -34,10 +34,10 @@ const emit = defineEmits<{
 const isTextarea = computed(() => props.type === 'text' && props.rows > 1)
 
 /**
- * Saat `digitsOnly` aktif dan tipe input adalah 'text' atau 'tel',
- * strip semua karakter non-digit dari nilai yang di-emit. Kita
- * mutate DOM input langsung (`target.value`) supaya cursor tidak
- * loncat dan nilai visual tetap konsisten dengan state.
+ * When `digitsOnly` is active and the input type is 'text' or
+ * 'tel', strip every non-digit character from the emitted value.
+ * We mutate the DOM input directly (`target.value`) so the cursor
+ * does not jump and the visible value stays consistent with state.
  */
 function onInput(e: Event): void {
   const target = e.target as HTMLInputElement | HTMLTextAreaElement

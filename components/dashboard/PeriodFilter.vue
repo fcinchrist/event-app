@@ -93,9 +93,9 @@ function onReset(): void {
   localDate.value = ''
   localYear.value = currentYear
   emit('apply', { mode: 'all', date: '', year: currentYear })
-  // Beri tahu parent untuk invalidate visual state (mis. untuk
-  // sembunyikan tombol Reset itu sendiri ketika filter sudah
-  // kembali ke default 'all' + date kosong).
+  // Notify parent to invalidate visual state (e.g. to hide the
+  // Reset button itself when the filter has been cleared back
+  // to the default 'all' + empty date).
   emit('reset')
 }
 </script>
@@ -108,9 +108,9 @@ function onReset(): void {
           <span class="w-1.5 h-5 rounded-full bg-emerald-500" />
           <h3 class="font-bold text-slate-900 text-sm">Filter Periode Data</h3>
         </div>
-        <!-- Tombol reset selalu tersedia di header supaya user bisa
-             mengosongkan filter dalam 1 klik dari mode manapun
-             (Semua Waktu / Per Hari / Per Tahun). -->
+        <!-- Reset button is always available in the header so users
+             can clear the filter in 1 click from any mode
+             (All Time / Per Day / Per Year). -->
         <button
           type="button"
           class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition-all"
@@ -202,9 +202,9 @@ function onReset(): void {
         </UiAppButton>
       </div>
 
-      <!-- Footer action hanya untuk mode day/year yang butuh tombol
-           Terapkan. Tombol reset di header sudah cukup untuk mode
-           'all'. -->
+      <!-- Footer action only for day/year modes which need an
+           Apply button. The reset button in the header is enough
+           for the 'all' mode. -->
     </div>
   </div>
 </template>

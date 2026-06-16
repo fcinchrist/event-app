@@ -39,11 +39,11 @@ function onPhoneInput(e?: Event): void {
   wasAutofilled.value = false
   inlineError.value = null
   successMessage.value = null
-  // Strip karakter non-digit (spasi, +, -, dll) agar sesuai
-  // spek: "input no hp allow only no only". User yang paste nomor
-  // ber-prefix +62 / 62-xxx akan otomatis dinormalisasi visual
-  // ke digit saja. Normalisasi final ke format 08… tetap terjadi
-  // di server lewat `normalizePhone`.
+  // Strip non-digit characters (spaces, +, -, etc.) per the spec:
+  // "phone input should only allow numbers". Users who paste a
+  // number with a +62 / 62- prefix get it visually normalized to
+  // digits only. The final normalization to the 08… format still
+  // happens server-side via `normalizePhone`.
   if (e) {
     const target = e.target as HTMLInputElement
     const stripped = target.value.replace(/\D/g, '')

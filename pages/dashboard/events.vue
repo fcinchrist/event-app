@@ -232,10 +232,9 @@ function onApplyPeriod(value: { mode: 'all' | 'day' | 'year'; date: string; year
 }
 
 // Status tabs: Semua / Aktif / Dibatalkan / Selesai.
-// `shortLabel` adalah versi ringkas (≤ 4 huruf) yang dipakai di
-// mobile supaya 4 tab muat dalam 1 baris dengan label lengkap
-// (ramah untuk pengguna lanjut usia). Di `sm+` tetap pakai
-// `label` panjang.
+// `shortLabel` is a compact version used on mobile so the 4 tabs
+// fit in a single row with a readable label (friendly for older
+// users). On `sm+` the full `label` is shown instead.
 const TABS: { key: StatusFilter; label: string; shortLabel: string; icon: string }[] = [
   { key: 'all', label: 'Semua', shortLabel: 'Semua', icon: 'fa-solid fa-layer-group' },
   { key: 'Aktif', label: 'Aktif', shortLabel: 'Aktif', icon: 'fa-solid fa-circle-check' },
@@ -417,11 +416,11 @@ function openAdd(): void {
 }
 
 /**
- * Reset semua filter (search, status tab, period) ke default dan
- * refetch dari halaman 1. Dipakai oleh tombol "Reset Filter" di
- * toolbar. Period di-reset ke 'all' lewat `setPeriod` di store
- * (otomatis refetch registrations + attendance, tapi tidak
- * refetch events — kita handle manual di sini).
+ * Reset all filters (search, status tab, period) to their default
+ * values and refetch from page 1. Triggered by the "Reset Filter"
+ * button in the toolbar. The period is reset to 'all' via
+ * `setPeriod` in the store (which auto-refetches registrations
+ * and attendance but NOT events — we do that explicitly below).
  */
 async function resetAllFilters(): Promise<void> {
   searchQuery.value = ''
@@ -559,14 +558,14 @@ function categoryNameFor(categoryId: string | null): string | null {
 
       <!-- ============ Toolbar: Search + Filter Tabs ============ -->
       <!--
-        Mobile-first: search box lebih besar (h-12), font 15px,
-        dan tab status pakai `grid grid-cols-2` di mobile (sehingga
-        "Selesai" tidak ke-cut) lalu `flex` di sm+. Ukuran tab juga
-        lebih besar (h-11) supaya mudah di-tap.
+        Mobile-first: the search box is taller (h-12) and the
+        status tabs use `flex-1` on mobile so all 4 tabs (Semua,
+        Aktif, Batal, Selesai) share the row width without being
+        cut off. Tab height is also larger (h-12) for easier taps.
       -->
       <div class="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-        <!-- Baris atas: tombol reset filter. Hanya tampil jika
-             ada filter aktif (search / status != all / period != all). -->
+        <!-- Top row: the reset filter button. Only rendered when
+             any filter is active (search / status != all / period != all). -->
         <div
           v-if="searchQuery || statusFilter !== 'all' || store.period.mode !== 'all'"
           class="flex items-center justify-between gap-2 pb-1 border-b border-slate-100"
@@ -609,7 +608,7 @@ function categoryNameFor(categoryId: string | null): string | null {
             v-if="searchQuery"
             type="button"
             class="text-slate-400 hover:text-rose-500 text-xs px-1 shrink-0"
-            aria-label="Bersihkan pencarian"
+            aria-label="Clear search"
             @click="searchQuery = ''"
           >
             <i class="fa-solid fa-circle-xmark" />

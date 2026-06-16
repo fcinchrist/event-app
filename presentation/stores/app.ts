@@ -87,6 +87,15 @@ export const useAppStore = defineStore('app', {
       return this.events.filter((e: Event) => {
         const eventStr = e.date.slice(0, 10)
 
+        // Hide events with status "Dibatalkan" from the public
+        // homepage. Admins can still see them in the dashboard
+        // (admins read from `useDashboardStore`, not this store).
+        // The "Selesai" status remains visible in the "Selesai /
+        // Lampau" tab so users can browse past events.
+        if (e.status === 'Dibatalkan') {
+          return false
+        }
+
         // Category filter (independent of the date/period filter).
         // `null` means "no category filter" → pass every event.
         if (this.filterCategoryId !== null && e.categoryId !== this.filterCategoryId) {
