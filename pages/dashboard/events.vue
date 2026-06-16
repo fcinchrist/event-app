@@ -83,14 +83,42 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
 }
 
+// Matches an event's date (ISO string) against the active period
+// filter from the dashboard store. Pure client-side filter on
+// `store.events` so it does not require an extra roundtrip to the
+// server. The dashboard store already manages `period` as the
+// single source of truth across pages.
+function matchesPeriod(dateIso: string): boolean {
+  const p = store.period
+  if (p.mode === 'all') return true
+  // Event.date is an ISO timestamp; YYYY-MM-DD prefix is enough for
+  // day/year comparison (matches the rest of the dashboard's period
+  // implementation).
+  const day = (dateIso ?? '').slice(0, 10)
+  if (!day) return true
+  if (p.mode === 'day' && p.date) {
+    return day === p.date
+  }
+  if (p.mode === 'year') {
+    return day.startsWith(`${p.year}-`)
+  }
+  return true
+}
+
 // List shown in the table (client-side filter; the server still applies
-// its own pagination).
+// its own pagination). Applies both the status tab and the global
+// period filter from the dashboard store.
 const filteredEvents = computed<Event[]>(() => {
-  if (statusFilter.value === 'all') return store.events
-  return store.events.filter((e) => e.status === statusFilter.value)
+  let list = store.events
+  if (statusFilter.value !== 'all') {
+    list = list.filter((e) => e.status === statusFilter.value)
+  }
+  return list.filter((e) => matchesPeriod(e.date))
 })
 
-// Counter for the status tabs
+// Counter for the status tabs. Counts use the master `store.events`
+// so the tab numbers are stable regardless of the period filter
+// (period is a "view filter", not a count).
 const countByStatus = computed<Record<StatusFilter, number>>(() => {
   const base: Record<StatusFilter, number> = {
     all: store.events.length,
@@ -103,6 +131,36 @@ const countByStatus = computed<Record<StatusFilter, number>>(() => {
   }
   return base
 })
+
+// Active period label, shown as a badge in the header. Reuses the
+// same labelling convention as `pages/dashboard/index.vue` so the UX
+// stays consistent across pages.
+const periodLabel = computed<string>(() => {
+  const p = store.period
+  if (p.mode === 'all') return 'Semua Waktu'
+  if (p.mode === 'day' && p.date) {
+    const [y, m, d] = p.date.split('-')
+    return `Hari: ${d}/${m}/${y}`
+  }
+  if (p.mode === 'year') return `Tahun: ${p.year}`
+  return 'Semua Waktu'
+})
+
+// Wire the shared `DashboardPeriodFilter` component to the dashboard
+// store. Reuses the same handler shape as the summary page so the
+// validation/error messages stay consistent.
+function onApplyPeriod(value: { mode: 'all' | 'day' | 'year'; date: string; year: number }): void {
+  if (value.mode === 'all') {
+    void store.setPeriod({ mode: 'all' })
+    return
+  }
+  if (value.mode === 'day') {
+    if (!value.date) return
+    void store.setPeriod({ mode: 'day', date: value.date })
+    return
+  }
+  void store.setPeriod({ mode: 'year', year: value.year })
+}
 
 const TABS: { key: StatusFilter; label: string; icon: string }[] = [
   { key: 'all', label: 'Semua', icon: 'fa-solid fa-layer-group' },
@@ -183,6 +241,10 @@ onMounted(async () => {
   // Pre-fetch categories so the table can show the category name
   // for each event (uses the cached `byId` map for lookup).
   void categoryStore.fetchCategories()
+  // Sync period data (registrasi + attendance) from the shared
+  // dashboard store so the period filter is consistent with the
+  // summary page (single source of truth).
+  void store.fetchRegistrationsByPeriod()
 })
 
 // Resolve a category name for a row from the cached map. Returns
@@ -207,11 +269,24 @@ function categoryNameFor(categoryId: string | null): string | null {
           <p class="text-xs text-slate-500">
             Daftar lengkap event komunitas {{ config.public.companyName }}.
           </p>
+          <!-- Badge periode aktif (sama seperti di summary) -->
+          <div class="mt-2 inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg text-[11px] font-semibold">
+            <i class="fa-solid fa-filter" />
+            Periode aktif: {{ periodLabel }}
+          </div>
         </div>
         <UiAppButton variant="primary" @click="openAdd">
           <i class="fa-solid fa-plus-circle" /> Buat Event Baru
         </UiAppButton>
       </header>
+
+      <!-- Filter periode (sama seperti di summary dashboard) -->
+      <DashboardPeriodFilter
+        :model-value="store.period"
+        :is-loading="store.isRegistrationsLoading"
+        @update:model-value="(v) => (store.period = v)"
+        @apply="onApplyPeriod"
+      />
 
       <!-- ============ Toolbar: Search + Filter Tabs ============ -->
       <div class="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
@@ -287,7 +362,7 @@ function categoryNameFor(categoryId: string | null): string | null {
         </div>
         <h4 class="font-bold text-slate-800 text-base">Tidak ada event dengan filter ini</h4>
         <p class="text-xs text-slate-500 mt-1">
-          Coba pilih tab lain atau ubah kata kunci pencarian.
+          Coba pilih tab lain, ubah kata kunci pencarian, atau atur ulang filter periode.
         </p>
       </div>
 
