@@ -13,6 +13,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   created: [eventId: string]
+  success: [message: string]
 }>()
 
 const store = useDashboardStore()
@@ -112,6 +113,12 @@ async function onSubmit(): Promise<void> {
     localError.value = result.error ?? 'Gagal membuat event.'
     return
   }
+  // Emit success event first so the parent page can show a global
+  // toast/banner (see `pages/dashboard/events.vue`). We do this
+  // BEFORE closing the modal so the success notification is fired
+  // with the still-open modal context (avoids race where the
+  // parent's `created` handler also runs refetch).
+  emit('success', `Event "${result.event.title}" berhasil dirilis.`)
   emit('created', result.event.id)
   emit('update:modelValue', false)
 }

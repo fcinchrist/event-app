@@ -31,6 +31,30 @@ const editingEvent = ref<Event | null>(null)
 const searchQuery = ref('')
 const imageLoadMap = ref<Record<string, boolean>>({})
 
+// Global success banner. Di-set dari `onCreateSuccess` (dipanggil
+// oleh `<DashboardAddEventModal>` saat `emit('success', ...)`).
+// Auto-dismiss setelah 4 detik supaya user tidak harus klik manual
+// (tetap dismissible via tombol X untuk kasus edge).
+const successMessage = ref<string | null>(null)
+let successTimer: ReturnType<typeof setTimeout> | null = null
+
+function flashSuccess(message: string): void {
+  successMessage.value = message
+  if (successTimer) clearTimeout(successTimer)
+  successTimer = setTimeout(() => {
+    successMessage.value = null
+  }, 4000)
+}
+
+function dismissSuccess(): void {
+  if (successTimer) clearTimeout(successTimer)
+  successMessage.value = null
+}
+
+onBeforeUnmount(() => {
+  if (successTimer) clearTimeout(successTimer)
+})
+
 // Dashboard navigation menu. Each URL is independent.
 const NAV_ITEMS = [
   { key: 'ringkasan', label: 'Ringkasan Dashboard', icon: 'fa-solid fa-chart-line', to: '/dashboard' },
@@ -122,50 +146,50 @@ const filteredEvents = computed<Event[]>(() => {
 })
 
 /**
- * Show pagination only when it is actually useful for the current
- * visible (post-filter) list.
+ * Show pagination whenever the server reports more than one page of
+ * data (`totalPages > 1`). We deliberately do NOT hide the pager
+ * just because the client-side status/period filter happens to
+ * leave ≤ `limit` items on the current page — the user still needs
+ * a way to navigate to other pages that contain the rest of the
+ * data.
  *
- * Three signals are considered:
- *  1. `store.isLoading`  → hide while loading.
- *  2. `filteredEvents.length`  → the count after the status tab AND
- *     the period filter have been applied. If this is small enough
- *     to fit on a single page relative to the current page index,
- *     there is no second page to navigate to, so we hide the pager.
- *  3. `m.hasPrevPage`    → we are already past page 1, so the user
- *     needs a way to go back; show the pager.
+ * The only times the pager is hidden:
+ *  1. While loading (`store.isLoading`) — avoids flash of "1 of 0".
+ *  2. When the server confirms there is only one page
+ *     (`totalPages <= 1`).
  *
- * This handles the bug where the server reports `total = 11+` (so
- * `totalPages = 2` and `hasNextPage = true`) but the client-side
- * period filter leaves only 1 event on screen — without this guard
- * the pager would misleadingly show "Halaman 1 dari 2" with no
- * useful second page.
+ * NOTE: an earlier version also checked `filteredEvents.length <=
+ * limit` to hide the pager when the visible list fit on one page.
+ * That logic was wrong: the user could legitimately have 10 events
+ * on page 1 of a 25-event database — the pager must stay visible
+ * so they can jump to page 2 / 3.
  */
 const shouldShowPagination = computed<boolean>(() => {
   if (store.isLoading) return false
   const m = store.pagination
-  // If we are past page 1, the pager is the only way to go back.
-  if (m.hasPrevPage) return true
-  // If the visible (post-filter) list is shorter than (or equal to)
-  // the page size, everything fits on a single page → hide pager.
-  if (filteredEvents.value.length <= m.limit) return false
-  // Otherwise only show if the server truly reports more pages.
-  return m.hasNextPage
+  // Single source of truth: server-reported page count.
+  return m.totalPages > 1
 })
 
-// Counter for the status tabs. Counts use the master `store.events`
-// so the tab numbers are stable regardless of the period filter
-// (period is a "view filter", not a count).
+// Counter for the status tabs. Sumber utama: `store.statusCounts`
+// (di-fetch server-side via `CountEventsByStatus`) sehingga angka
+// di badge mencerminkan TOTAL seluruh halaman, bukan hanya rows
+// di halaman tabel saat ini. Sebelumnya badge dihitung dari
+// `store.events` (yang hanya berisi ≤ `limit` baris per halaman),
+// sehingga angka-nya selalu salah saat ada pagination.
+//
+// `all` tetap di-derive dari `pagination.total` (server-authoritative)
+// — yang juga sudah di-update optimistis di `createEvent` /
+// `updateEventStatus` / `deleteEvent`.
 const countByStatus = computed<Record<StatusFilter, number>>(() => {
-  const base: Record<StatusFilter, number> = {
-    all: store.events.length,
-    Aktif: 0,
-    Dibatalkan: 0,
-    Selesai: 0,
+  const counts = store.statusCounts
+  const all = store.pagination.total
+  return {
+    all,
+    Aktif: counts.Aktif ?? 0,
+    Dibatalkan: counts.Dibatalkan ?? 0,
+    Selesai: counts.Selesai ?? 0,
   }
-  for (const e of store.events) {
-    base[e.status] = (base[e.status] ?? 0) + 1
-  }
-  return base
 })
 
 // Active period label, shown as a badge in the header. Reuses the
@@ -278,17 +302,34 @@ usePeriodQuerySync(periodRef, { history: 'replace' })
  * Debounced search: tiap kali `searchQuery` berubah (dari user ngetik
  * ATAU dari URL sync), trigger fetch setelah 350ms idle. Reset ke
  * page=1 supaya hasil baru langsung di halaman pertama.
+ *
+ * PENTING: `setSearch()` di store TIDAK memanggil `fetchEvents()`
+ * — itu tanggung jawab caller. Sebelumnya watcher ini cuma
+ * `setSearch()` tanpa fetch, jadi kalau user sudah di page 1 (tidak
+ * ada pageRef change) pencarian hanya “jalan sekali” dan stuck di
+ * hasil pertama. Sekarang kita selalu `fetchEvents()` di akhir
+ * watcher, baik search berubah maupun tidak.
  */
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 watch(searchQuery, (next) => {
   if (searchTimer) clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
+  searchTimer = setTimeout(async () => {
     if (store.search !== next) {
       store.setSearch(next)
-    } else {
-      // Same value, just refetch to be safe (e.g. after create/delete).
-      void store.fetchEvents()
     }
+    // Selalu refetch di akhir — baik search baru maupun tidak.
+    // `setSearch()` sudah reset `this.page = 1`; kalau page memang
+    // berubah dari nilai sebelumnya, `watch(pageRef)` di bawah
+    // akan men-double-fire, tapi Pinia/Vue men-debounce watcher
+    // jadi aman. Untuk memastikan, kita set page dulu sebelum
+    // fetch supaya tidak ada race.
+    if (store.page !== 1) {
+      store.setPage(1)
+    }
+    await Promise.all([
+      store.fetchEvents(),
+      store.fetchStatusCounts(next),
+    ])
   }, 350)
 })
 
@@ -362,19 +403,36 @@ function openAdd(): void {
   showAddModal.value = true
 }
 
-function onCreated(): void {
-  store.fetchEvents()
-  // Refresh participants count for every event
-  Promise.all(
+async function onCreated(): Promise<void> {
+  // Reset ke page 1 lalu refetch. Pakai `await` agar tabel + pager
+  // update sinkron sebelum kita refresh participants count.
+  // Sebelumnya `store.fetchEvents()` di-fire tanpa await sehingga
+  // user bisa lihat "stale list" sesaat setelah create.
+  if (store.page !== 1) {
+    store.setPage(1)
+  }
+  await Promise.all([
+    store.fetchEvents(),
+    store.fetchStatusCounts(searchQuery.value),
+  ])
+  // Refresh participants count untuk semua event
+  await Promise.all(
     store.events.map((e) => regStore.fetchParticipants(e.id)),
   )
+}
+
+function onCreateSuccess(message: string): void {
+  flashSuccess(message)
 }
 
 onMounted(async () => {
   if (appStore.authUser === null) {
     await appStore.initAuth()
   }
-  await store.fetchEvents()
+  await Promise.all([
+    store.fetchEvents(),
+    store.fetchStatusCounts(searchQuery.value),
+  ])
   // Pre-fetch participants count for the "Lihat Peserta" button badge
   await Promise.all(
     store.events.map((e) => regStore.fetchParticipants(e.id)),
@@ -466,6 +524,27 @@ function categoryNameFor(categoryId: string | null): string | null {
             </span>
           </button>
         </div>
+      </div>
+
+      <!-- ============ Success Banner (auto-dismiss 4s) ============ -->
+      <div
+        v-if="successMessage"
+        role="status"
+        aria-live="polite"
+        class="bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs p-3 rounded-xl flex items-start justify-between gap-3"
+      >
+        <div class="flex items-start gap-2">
+          <i class="fa-solid fa-circle-check text-emerald-600 mt-0.5" />
+          <span class="font-semibold">{{ successMessage }}</span>
+        </div>
+        <button
+          type="button"
+          class="text-emerald-600 hover:text-emerald-800 transition-colors"
+          aria-label="Tutup notifikasi"
+          @click="dismissSuccess"
+        >
+          <i class="fa-solid fa-xmark" />
+        </button>
       </div>
 
       <!-- ============ Error ============ -->
@@ -840,7 +919,7 @@ function categoryNameFor(categoryId: string | null): string | null {
       </div>
     </section>
 
-    <DashboardAddEventModal v-model="showAddModal" @created="onCreated" />
+    <DashboardAddEventModal v-model="showAddModal" @created="onCreated" @success="onCreateSuccess" />
     <DashboardEditEventModal v-model="showEditModal" :event="editingEvent" @updated="onUpdated" />
     <DashboardEventParticipantsModal v-model="showParticipantsModal" :event="participantsEvent" />
   </DashboardShell>

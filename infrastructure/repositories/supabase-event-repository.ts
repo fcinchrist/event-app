@@ -75,6 +75,39 @@ export class SupabaseEventRepository implements EventRepository {
     return mapEventRow(data)
   }
 
+  /**
+   * Hitung jumlah event per status, dengan optional `search` filter
+   * (mengikuti konvensi yang sama dengan `getAll`).
+   *
+   * Strategi: query PostgREST dengan select hanya kolom `id`
+   * (hemat bandwidth) + `count: 'exact'` + `head: true` (tidak
+   * ambil rows, hanya hitung). Karena PostgREST tidak punya
+   * GROUP BY endpoint, kita fetch satu query per status. Untuk
+   * 3 status (Aktif, Dibatalkan, Selesai) ini cukup murah karena
+   * dijalankan paralel.
+   */
+  async countByStatus(search?: string): Promise<Record<string, number>> {
+    const supabase = useSupabaseClient()
+    const result: Record<string, number> = {}
+    const term = (search ?? '').trim()
+    const statuses: EventStatusValue[] = ['Aktif', 'Dibatalkan', 'Selesai']
+    await Promise.all(statuses.map(async (status) => {
+      let q = supabase
+        .from('events')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', status)
+      if (term) {
+        q = q.or(`title.ilike.%${term}%,location.ilike.%${term}%`)
+      }
+      const { count, error } = await q
+      if (error) {
+        throw new Error(error.message)
+      }
+      result[status] = typeof count === 'number' ? count : 0
+    }))
+    return result
+  }
+
   async create(payload: EventFormData): Promise<Event> {
     const supabase = useSupabaseClient()
 

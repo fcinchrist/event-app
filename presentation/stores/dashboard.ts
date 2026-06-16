@@ -18,6 +18,7 @@ import { UploadEventImage } from '~/application/use-cases/upload-event-image'
 import { UpdateEventStatus } from '~/application/use-cases/update-event-status'
 import { GetAttendanceByPeriod } from '~/application/use-cases/get-attendance-by-period'
 import { GetRegistrationsByPeriod } from '~/application/use-cases/get-registrations-by-period'
+import { CountEventsByStatus } from '~/application/use-cases/count-events-by-status'
 import { createLogger } from '~/utils/logger'
 
 const log = createLogger('dashboard-store')
@@ -81,6 +82,17 @@ interface DashboardState {
   isRegistrationsLoading: boolean
   /** Subset event yang sesuai dengan periode aktif (untuk occupancy). */
   periodEvents: Event[]
+  /**
+   * Jumlah event per status, dihitung server-side via
+   * `CountEventsByStatus`. Digunakan oleh tab badge di halaman
+   * Kelola Event supaya angka mencerminkan TOTAL seluruh halaman
+   * (bukan hanya rows di halaman yang sedang ditampilkan di tabel).
+   * Optional search dikirim supaya count tetap sinkron dengan
+   * filter search di toolbar.
+   */
+  statusCounts: Record<string, number>
+  /** Loading state khusus untuk `fetchStatusCounts`. */
+  isStatusCountsLoading: boolean
 }
 
 function getEventRepository(): SupabaseEventRepository {
@@ -117,6 +129,8 @@ export const useDashboardStore = defineStore('dashboard', {
     periodRegistrations: [],
     isRegistrationsLoading: false,
     periodEvents: [],
+    statusCounts: { Aktif: 0, Dibatalkan: 0, Selesai: 0 },
+    isStatusCountsLoading: false,
   }),
 
   actions: {
@@ -139,6 +153,33 @@ export const useDashboardStore = defineStore('dashboard', {
         this.error = message
       } finally {
         this.isLoading = false
+      }
+    },
+
+    /**
+     * Hitung jumlah event per status via `CountEventsByStatus`.
+     * Dipakai oleh tab badge di halaman Kelola Event sehingga
+     * angka mencerminkan TOTAL seluruh halaman (bukan hanya rows
+     * di halaman yang sedang ditampilkan).
+     */
+    async fetchStatusCounts(search?: string): Promise<void> {
+      this.isStatusCountsLoading = true
+      try {
+        const repo = getEventRepository()
+        const useCase = new CountEventsByStatus(repo)
+        const counts = await useCase.execute(search ?? this.search)
+        this.statusCounts = {
+          Aktif: counts.Aktif ?? 0,
+          Dibatalkan: counts.Dibatalkan ?? 0,
+          Selesai: counts.Selesai ?? 0,
+        }
+      } catch (err: unknown) {
+        log.error('Store action failed', err, { action: 'fetchStatusCounts' })
+        // Jangan set `this.error` — ini bukan error fatal untuk
+        // UX halaman (caller masih bisa render badge dari rows
+        // yang ada). Cukup log agar bisa di-monitor di Sentry.
+      } finally {
+        this.isStatusCountsLoading = false
       }
     },
 
@@ -168,6 +209,31 @@ export const useDashboardStore = defineStore('dashboard', {
         // prepend to the list and reset to page 1
         this.events = [event, ...this.events]
         this.page = 1
+        // Optimistically bump pagination meta so the pager updates
+        // immediately (don't wait for the next fetchEvents roundtrip
+        // to refresh `this.pagination`). Without this, the table
+        // shows the new event but the pager keeps the stale `total`
+        // and `totalPages` from the previous fetch — making it
+        // disappear or look broken right after creation.
+        const prev = this.pagination
+        const nextTotal = prev.total + 1
+        const nextTotalPages = Math.max(1, Math.ceil(nextTotal / this.limit))
+        this.pagination = {
+          ...prev,
+          total: nextTotal,
+          totalPages: nextTotalPages,
+          // After prepend we are on page 1 → no prev, but there may
+          // be a next page if `nextTotalPages > 1`.
+          hasPrevPage: false,
+          hasNextPage: nextTotalPages > 1,
+        }
+        // Bump count untuk status event baru. Default 'Aktif' untuk
+        // event baru (lihat CreateEvent use case). Pemanggil dapat
+        // nanti override lewat `void store.fetchStatusCounts()`.
+        this.statusCounts = {
+          ...this.statusCounts,
+          [event.status]: (this.statusCounts[event.status] ?? 0) + 1,
+        }
         return { success: true, error: null, event }
       } catch (err: unknown) {
         log.error('Store action failed', err, { action: 'createEvent' })
@@ -206,8 +272,17 @@ export const useDashboardStore = defineStore('dashboard', {
         const repo = getEventRepository()
         const useCase = new DeleteEvent(repo)
         await useCase.execute(id)
+        // Catat status event sebelum dihapus supaya kita bisa
+        // decrement count per status dengan benar.
+        const removed = this.events.find((e) => e.id === id)
         this.events = this.events.filter((e) => e.id !== id)
         if (this.selectedEvent?.id === id) this.selectedEvent = null
+        if (removed) {
+          this.statusCounts = {
+            ...this.statusCounts,
+            [removed.status]: Math.max(0, (this.statusCounts[removed.status] ?? 1) - 1),
+          }
+        }
         return { success: true, error: null }
       } catch (err: unknown) {
         log.error('Store action failed', err, { action: 'deleteEvent' })
@@ -240,8 +315,17 @@ export const useDashboardStore = defineStore('dashboard', {
         const useCase = new UpdateEventStatus(repo)
         const event = await useCase.execute(id, status)
         // Sync the local list with the returned updated event.
+        const previous = this.events.find((e) => e.id === id)
         this.events = this.events.map((e) => (e.id === id ? event : e))
         if (this.selectedEvent?.id === id) this.selectedEvent = event
+        // Swap status counts: decrement old, increment new.
+        if (previous && previous.status !== event.status) {
+          this.statusCounts = {
+            ...this.statusCounts,
+            [previous.status]: Math.max(0, (this.statusCounts[previous.status] ?? 1) - 1),
+            [event.status]: (this.statusCounts[event.status] ?? 0) + 1,
+          }
+        }
         return { success: true, error: null, event }
       } catch (err: unknown) {
         log.error('Store action failed', err, { action: 'updateEventStatus' })
