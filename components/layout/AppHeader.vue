@@ -79,6 +79,7 @@ function handleLogout(): Promise<void> {
         Kanan header (desktop saja):
         - Tombol "Dashboard" / "Admin Login" / "Halaman Utama" — emerald primary
         - Email chip admin — emerald primary (sama dengan tombol di sebelahnya)
+        - Tombol "Ubah Password" — slate outline (seimbang dengan email chip)
         - Tombol Logout — full red (rose) dengan shadow
 
         Dimensi placeholder skeleton (saat SSR pertama sebelum initAuth
@@ -111,13 +112,21 @@ function handleLogout(): Promise<void> {
           </NuxtLink>
         </template>
 
-        <!-- Logged in: show email chip + logout -->
+        <!-- Logged in: show email chip + change-password + logout -->
         <template v-if="store.isAdminLoggedIn">
           <!-- Email chip: emerald primary (matches the brand buttons) -->
           <span class="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 max-w-[180px] truncate shadow-sm shadow-emerald-100">
             <i class="fa-solid fa-shield-halved" aria-hidden="true" />
             <span class="truncate">{{ store.authUser?.email }}</span>
           </span>
+          <!-- Ubah Password: outline slate, balance dengan tombol di sebelahnya -->
+          <NuxtLink
+            to="/admin/change-password"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all flex items-center gap-1.5"
+            aria-label="Ubah password admin"
+          >
+            <i class="fa-solid fa-key" aria-hidden="true" /> Ubah Password
+          </NuxtLink>
           <!-- Logout: full red (rose) -->
           <button
             class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 shadow-sm shadow-rose-100 transition-all flex items-center gap-1.5"

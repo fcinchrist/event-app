@@ -5,6 +5,7 @@ import type {
   Registration,
   RegistrationWithUser,
 } from '~/domain/entities/registration'
+import { useAppStore } from '~/presentation/stores/app'
 import { SupabaseEventRepository } from '~/infrastructure/repositories/supabase-event-repository'
 import { SupabaseRegistrationRepository } from '~/infrastructure/repositories/supabase-registration-repository'
 import { SupabaseUserRepository } from '~/infrastructure/repositories/supabase-user-repository'
@@ -283,6 +284,13 @@ export const useRegistrationStore = defineStore('registration', {
      *
      * Setelah update, re-fetch count supaya counter EventCard ikut
      * akurat (kalau user di-toggle ke "Tidak Hadir", slot di-release).
+     *
+     * Audit trail (migration #5): email admin yang sedang login
+     * diambil dari `useAppStore().authUser?.email` dan diteruskan ke
+     * use case → repository untuk disimpan di kolom
+     * `verified_by_email` + `verified_at`. Kalau tidak ada admin
+     * yang login (seharusnya tidak mungkin di alur ini), audit akan
+     * dilewati (null) — sama seperti perilaku sebelum fitur ini.
      */
     async markAttendance(
       eventId: string,
@@ -291,17 +299,28 @@ export const useRegistrationStore = defineStore('registration', {
     ): Promise<string | null> {
       this.error = null
       try {
+        // Ambil email admin yang sedang login untuk audit trail.
+        // Di Pinia, useOtherStore() aman dipanggil di dalam action.
+        const appStore = useAppStore()
+        const verifierEmail = appStore.authUser?.email ?? null
         const repo = new SupabaseRegistrationRepository()
         const useCase = new MarkAttendance(repo)
         const updated: Registration = await useCase.execute(
           registrationId,
           status,
+          verifierEmail,
         )
         const list = this.participantsByEvent[eventId]
         if (list) {
           this.participantsByEvent[eventId] = list.map((r) =>
             r.id === registrationId
-              ? { ...r, status: updated.status, checkinAt: updated.checkinAt }
+              ? {
+                  ...r,
+                  status: updated.status,
+                  checkinAt: updated.checkinAt,
+                  verifiedByEmail: updated.verifiedByEmail,
+                  verifiedAt: updated.verifiedAt,
+                }
               : r,
           )
         }

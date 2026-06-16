@@ -209,6 +209,19 @@ onMounted(async () => {
                     <i class="fa-solid fa-shield-halved shrink-0" />
                     <span class="truncate min-w-0 flex-1">{{ store.authUser?.email }}</span>
                   </div>
+                  <!--
+                    Ubah Password: menu "akun" di drawer mobile.
+                    Konsisten dengan tombol di AppHeader desktop —
+                    klik langsung ke /admin/change-password.
+                  -->
+                  <button
+                    type="button"
+                    class="w-full px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5 text-left text-slate-600 hover:bg-emerald-50 hover:text-emerald-700"
+                    @click="goTo('/admin/change-password')"
+                  >
+                    <i class="fa-solid fa-key w-4 text-center" />
+                    Ubah Password
+                  </button>
                   <button
                     type="button"
                     class="w-full mt-1 px-4 py-3 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5 text-left text-rose-600 hover:bg-rose-50"

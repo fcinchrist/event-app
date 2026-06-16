@@ -110,6 +110,75 @@ function safeStatus(s: string): RegistrationStatus {
 }
 
 /**
+ * Format an ISO timestamp → "16 Jun 2026, 13.21" (id-ID, short).
+ * Used to display when attendance was verified. Returns an empty
+ * string when the input is null / invalid.
+ */
+function formatVerifiedAt(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+/**
+ * Compact relative time used inline next to the verifier email.
+ * Examples (id-ID, friendly):
+ *   - "baru saja"        (< 1 minute)
+ *   - "5 menit lalu"
+ *   - "2 jam lalu"
+ *   - "kemarin"          (yesterday, same clock)
+ *   - "3 hari lalu"
+ *   - "16 Jun"           (same year)
+ *   - "16 Jun 2025"      (different year)
+ * Falls back to the same full format as `formatVerifiedAt` for old
+ * timestamps that still need to be rendered.
+ */
+function relativeVerifiedAt(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffSec = Math.round(diffMs / 1000)
+  const diffMin = Math.round(diffSec / 60)
+  const diffHr = Math.round(diffMin / 60)
+  const diffDay = Math.round(diffHr / 24)
+
+  if (diffSec < 60) return 'baru saja'
+  if (diffMin < 60) return `${diffMin} menit lalu`
+  if (diffHr < 24 && isSameCalendarDay(d, now)) {
+    return `${diffHr} jam lalu`
+  }
+  if (diffDay === 1) return 'kemarin'
+  if (diffDay < 7) return `${diffDay} hari lalu`
+
+  // Older than a week → show the calendar date.
+  if (d.getFullYear() === now.getFullYear()) {
+    return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
+  }
+  return d.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function isSameCalendarDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
+}
+
+/**
  * Cegah double-tap saat request sedang jalan. Operator yang
  * panik kadang tap beberapa kali — `busyRegId` memastikan
  * setiap baris hanya diproses satu per satu.
@@ -309,7 +378,7 @@ function statCardClass(key: StatusFilter): string {
               {{ reg.user.nama.charAt(0).toUpperCase() }}
             </div>
 
-            <!-- Info: nama + no HP (tanpa ID registrasi) -->
+            <!-- Info: nama + no HP + (jika sudah diverifikasi) siapa & kapan -->
             <div class="flex-grow min-w-0">
               <p class="font-bold text-slate-900 text-base truncate">
                 {{ reg.user.nama }}
@@ -317,6 +386,33 @@ function statCardClass(key: StatusFilter): string {
               <p class="text-sm text-slate-500 truncate flex items-center gap-1.5 mt-0.5">
                 <i class="fa-brands fa-whatsapp text-emerald-500 shrink-0" />
                 <span>{{ reg.user.noHp }}</span>
+              </p>
+              <!--
+                Audit trail (migration #5): show who performed the
+                verification + when. Only rendered when the row has
+                actually been verified (status is not 'Terdaftar').
+                The visible time uses a compact, relative form
+                ("5 menit lalu", "kemarin", "16 Jun") and the full
+                timestamp is exposed via the native `title` tooltip
+                on hover.
+              -->
+              <p
+                v-if="reg.status !== 'Terdaftar' && reg.verifiedByEmail"
+                class="text-[11px] text-slate-400 truncate flex items-center gap-1 mt-0.5"
+                :title="`Diverifikasi pada ${formatVerifiedAt(reg.verifiedAt)}`"
+              >
+                <i class="fa-solid fa-user-check text-slate-400 shrink-0" />
+                <span class="truncate">
+                  oleh
+                  <span class="font-semibold text-slate-500">{{ reg.verifiedByEmail }}</span>
+                </span>
+                <span
+                  v-if="reg.verifiedAt"
+                  class="shrink-0"
+                  aria-hidden="true"
+                >
+                  · {{ relativeVerifiedAt(reg.verifiedAt) }}
+                </span>
               </p>
             </div>
 

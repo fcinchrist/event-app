@@ -15,6 +15,11 @@ import type { RegistrationStatus } from '~/domain/entities/registration'
  * Raw row shape returned from `public.event_registrations`. May
  * include nested `user: UserRow` (JOIN `event_users`) and/or
  * `event: EventRow` (JOIN `events`).
+ *
+ * `verified_by_email` & `verified_at` are added by migration #5.
+ * Both are NULLABLE — NULL for old rows (pre-migration) and for
+ * rows whose status is still the default 'Terdaftar' (never
+ * actioned by an admin).
  */
 export interface RegistrationRow {
   id: string
@@ -23,6 +28,8 @@ export interface RegistrationRow {
   status: string
   checkin_at: string | null
   registered_at: string
+  verified_by_email?: string | null
+  verified_at?: string | null
   user?: UserRow | null
   event?: EventRow | null
 }
@@ -45,6 +52,23 @@ function normalizeStatus(value: unknown): RegistrationStatus {
   return REGISTRATION_STATUS_VALUES[0]
 }
 
+/**
+ * Narrow the raw string|null|undefined value coming from the
+ * `verified_by_email` Supabase column down to string|null. Returns
+ * null for empty / null / undefined values so the mapper stays
+ * consistent with the domain type.
+ */
+function normalizeVerifiedByEmail(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function normalizeVerifiedAt(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length === 0) return null
+  return value
+}
+
 /** Maps a Supabase row → domain Registration (snake_case → camelCase). Throws on invalid rows. */
 export function mapRegistrationRow(row: unknown): Registration {
   if (!isRegistrationRow(row)) {
@@ -57,6 +81,8 @@ export function mapRegistrationRow(row: unknown): Registration {
     status: normalizeStatus(row.status),
     checkinAt: row.checkin_at,
     registeredAt: row.registered_at,
+    verifiedByEmail: normalizeVerifiedByEmail(row.verified_by_email),
+    verifiedAt: normalizeVerifiedAt(row.verified_at),
   }
 }
 
@@ -77,6 +103,8 @@ export function mapRegistrationWithUserRow(
     status: normalizeStatus(row.status),
     checkinAt: row.checkin_at,
     registeredAt: row.registered_at,
+    verifiedByEmail: normalizeVerifiedByEmail(row.verified_by_email),
+    verifiedAt: normalizeVerifiedAt(row.verified_at),
     user: mapUserRow(row.user),
   }
 }
@@ -114,6 +142,8 @@ export function mapRegistrationWithEventRow(
     status: normalizeStatus(row.status),
     checkinAt: row.checkin_at,
     registeredAt: row.registered_at,
+    verifiedByEmail: normalizeVerifiedByEmail(row.verified_by_email),
+    verifiedAt: normalizeVerifiedAt(row.verified_at),
     event: mapEventRow(row.event),
   }
 }

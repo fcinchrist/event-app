@@ -10,6 +10,7 @@ import { LoginUser } from '~/application/use-cases/login-user'
 import { LogoutUser } from '~/application/use-cases/logout-user'
 import { RequestPasswordReset } from '~/application/use-cases/request-password-reset'
 import { UpdatePassword } from '~/application/use-cases/update-password'
+import { ChangePassword } from '~/application/use-cases/change-password'
 
 interface AppState {
   role: AppRole
@@ -352,6 +353,36 @@ export const useAppStore = defineStore('app', {
         const repo = new SupabaseAuthRepository()
         const useCase = new UpdatePassword(repo)
         const result = await useCase.execute(newPassword, confirmPassword)
+        if (result.success) return null
+        return result.error ?? 'Gagal memperbarui password.'
+      } catch {
+        return 'Gagal terhubung ke server.'
+      }
+    },
+
+    /**
+     * Ganti password admin yang SEDANG LOGIN.
+     *
+     * Dipakai oleh halaman `/admin/change-password` (profil admin).
+     * Beda dengan `updatePassword` (alur "lupa password" → link di email):
+     * yang ini MEMVERIFIKASI password lama dulu sebelum tulis yang baru.
+     *
+     * Return null kalau sukses, atau string error kalau gagal
+     * (dipakai form untuk tampilkan inline error).
+     */
+    async changePassword(
+      currentPassword: string,
+      newPassword: string,
+      confirmPassword: string,
+    ): Promise<string | null> {
+      try {
+        const repo = new SupabaseAuthRepository()
+        const useCase = new ChangePassword(repo)
+        const result = await useCase.execute(
+          currentPassword,
+          newPassword,
+          confirmPassword,
+        )
         if (result.success) return null
         return result.error ?? 'Gagal memperbarui password.'
       } catch {

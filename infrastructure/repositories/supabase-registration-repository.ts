@@ -141,6 +141,7 @@ export class SupabaseRegistrationRepository implements RegistrationRepository {
   async updateStatus(
     id: string,
     status: RegistrationStatus,
+    verifiedByEmail?: string | null,
   ): Promise<Registration> {
     const supabase = useSupabaseClient()
 
@@ -149,6 +150,19 @@ export class SupabaseRegistrationRepository implements RegistrationRepository {
       patch.checkin_at = new Date().toISOString()
     } else if (status === 'Terdaftar') {
       patch.checkin_at = null
+    }
+
+    // Audit trail (migration #5): every attendance status change is
+    // recorded with the actor (email) and the timestamp. For the
+    // default 'Terdaftar' status (initial registration, or rollback
+    // to not-yet-verified) we clear both columns to avoid a stale
+    // false-positive audit entry.
+    if (status === 'Terdaftar') {
+      patch.verified_by_email = null
+      patch.verified_at = null
+    } else if (verifiedByEmail && verifiedByEmail.trim().length > 0) {
+      patch.verified_by_email = verifiedByEmail.trim()
+      patch.verified_at = new Date().toISOString()
     }
 
     const { data, error } = await supabase

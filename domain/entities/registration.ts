@@ -31,6 +31,25 @@ export interface Registration {
   status: RegistrationStatus
   checkinAt: string | null
   registeredAt: string
+  /**
+   * Email of the admin/organizer who last changed the attendance
+   * status. NULL for old rows (before migration #5) and for rows
+   * whose status is still the default 'Terdaftar' (never actioned).
+   *
+   * Stored as TEXT (not a FK to auth.users) so:
+   *   1. It does not add coupling to the auth schema.
+   *   2. It can be filled directly from the Supabase session, no join.
+   *   3. It stays human-readable for audit purposes.
+   */
+  verifiedByEmail: string | null
+  /**
+   * Timestamp of the last attendance status change.
+   * NULL for old rows / rows that have never been verified.
+   * May differ from `checkinAt` because `checkinAt` is only set
+   * when the status is 'Hadir', whereas `verifiedAt` is set on
+   * every status change (including to 'Tidak Hadir').
+   */
+  verifiedAt: string | null
 }
 
 export interface RegistrationWithUser extends Registration {
