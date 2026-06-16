@@ -2,12 +2,19 @@
 interface Props {
   label: string
   modelValue: string | number
-  type?: 'text' | 'number' | 'datetime-local' | 'email' | 'url'
+  type?: 'text' | 'number' | 'datetime-local' | 'email' | 'url' | 'tel'
   placeholder?: string
   required?: boolean
   disabled?: boolean
   rows?: number
   helper?: string
+  /**
+   * Jika `true`, input hanya menerima karakter digit (0–9).
+   * Karakter non-digit akan otomatis di-strip saat user mengetik.
+   * Bekerja untuk tipe 'text' dan 'tel' saja; diabaikan untuk
+   * tipe lain (number, date, dll).
+   */
+  digitsOnly?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -17,6 +24,7 @@ const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   rows: 3,
   helper: '',
+  digitsOnly: false,
 })
 
 const emit = defineEmits<{
@@ -25,9 +33,26 @@ const emit = defineEmits<{
 
 const isTextarea = computed(() => props.type === 'text' && props.rows > 1)
 
+/**
+ * Saat `digitsOnly` aktif dan tipe input adalah 'text' atau 'tel',
+ * strip semua karakter non-digit dari nilai yang di-emit. Kita
+ * mutate DOM input langsung (`target.value`) supaya cursor tidak
+ * loncat dan nilai visual tetap konsisten dengan state.
+ */
 function onInput(e: Event): void {
   const target = e.target as HTMLInputElement | HTMLTextAreaElement
-  const value = props.type === 'number' ? Number(target.value) : target.value
+  if (props.type === 'number') {
+    emit('update:modelValue', Number(target.value))
+    return
+  }
+  let value = target.value
+  if (props.digitsOnly && (props.type === 'text' || props.type === 'tel')) {
+    const stripped = value.replace(/\D/g, '')
+    if (stripped !== value) {
+      target.value = stripped
+    }
+    value = stripped
+  }
   emit('update:modelValue', value)
 }
 </script>
@@ -54,6 +79,7 @@ function onInput(e: Event): void {
       v-else
       :value="props.modelValue"
       :type="props.type"
+      :inputmode="props.digitsOnly ? 'numeric' : undefined"
       :placeholder="props.placeholder"
       :disabled="props.disabled"
       :required="props.required"

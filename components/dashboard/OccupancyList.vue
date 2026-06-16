@@ -8,13 +8,72 @@ export interface OccupancyItem {
 
 interface Props {
   items: OccupancyItem[]
+  /**
+   * Jumlah event per halaman. Default 5 (sesuai spek: "5/5").
+   * Atur ke 0 untuk disable pagination (tampilkan semua).
+   */
+  pageSize?: number
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  pageSize: 5,
+})
 
 function rateOf(item: OccupancyItem): number {
   if (item.quota <= 0) return 0
   return Math.round((item.taken / item.quota) * 100)
+}
+
+/**
+ * Pagination client-side. Reset ke page=1 setiap kali `items`
+ * berubah (mis. setelah refetch registrasi di periode lain)
+ * supaya user tidak stuck di halaman kosong.
+ */
+const currentPage = ref(1)
+
+watch(
+  () => props.items,
+  () => {
+    currentPage.value = 1
+  },
+)
+
+const totalItems = computed(() => props.items.length)
+
+/**
+ * Jumlah total halaman. Jika `pageSize` <= 0, tampilkan semua
+ * (1 halaman virtual berisi seluruh items). Minimum 1 supaya
+ * pager tidak menampilkan "Halaman 1 dari 0".
+ */
+const totalPages = computed(() => {
+  if (props.pageSize <= 0) return 1
+  return Math.max(1, Math.ceil(totalItems.value / props.pageSize))
+})
+
+const pagedItems = computed<OccupancyItem[]>(() => {
+  if (props.pageSize <= 0) return props.items
+  const start = (currentPage.value - 1) * props.pageSize
+  return props.items.slice(start, start + props.pageSize)
+})
+
+const shouldShowPagination = computed<boolean>(
+  () => props.pageSize > 0 && totalPages.value > 1,
+)
+
+const pageLabel = computed<string>(() => {
+  if (totalItems.value === 0) return ''
+  if (props.pageSize <= 0) return `${totalItems.value} event`
+  const start = (currentPage.value - 1) * props.pageSize + 1
+  const end = Math.min(currentPage.value * props.pageSize, totalItems.value)
+  return `${start}–${end} dari ${totalItems.value}`
+})
+
+function goPrev(): void {
+  if (currentPage.value > 1) currentPage.value -= 1
+}
+
+function goNext(): void {
+  if (currentPage.value < totalPages.value) currentPage.value += 1
 }
 </script>
 
@@ -25,12 +84,12 @@ function rateOf(item: OccupancyItem): number {
       <p class="text-xs text-slate-500">Daftar event beserta tingkat pengisian kuotanya.</p>
     </div>
 
-    <div v-if="props.items.length === 0" class="py-8 text-center text-xs text-slate-400 italic">
+    <div v-if="pagedItems.length === 0" class="py-8 text-center text-xs text-slate-400 italic">
       Belum ada data event untuk ditampilkan.
     </div>
 
     <div v-else class="space-y-4 my-6">
-      <div v-for="item in props.items" :key="item.id" class="space-y-1.5">
+      <div v-for="item in pagedItems" :key="item.id" class="space-y-1.5">
         <div class="flex justify-between items-center text-xs">
           <span class="font-bold text-slate-800 truncate max-w-[200px] sm:max-w-none">
             {{ item.title }}
@@ -48,8 +107,42 @@ function rateOf(item: OccupancyItem): number {
       </div>
     </div>
 
-    <div class="text-[10px] text-slate-400 italic text-center border-t border-slate-100 pt-3">
-      Update otomatis setiap ada registrasi atau check-in baru.
+    <!-- Footer: pagination (5/page) + label jumlah event. Pager
+         hanya tampil kalau pageSize > 0 dan total halaman > 1.
+         Tombol lebih besar (min-h-9) supaya tetap nyaman di
+         tap saat dipakai bareng section lain di mobile. -->
+    <div
+      v-if="totalItems > 0"
+      class="flex items-center justify-between gap-2 border-t border-slate-100 pt-3"
+    >
+      <div class="text-[10px] text-slate-400 italic truncate">
+        {{ pageLabel }} event
+      </div>
+      <div v-if="shouldShowPagination" class="flex items-center gap-1.5 shrink-0">
+        <button
+          type="button"
+          :disabled="currentPage === 1"
+          class="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all flex items-center justify-center"
+          aria-label="Halaman sebelumnya"
+          @click="goPrev"
+        >
+          <i class="fa-solid fa-chevron-left text-[10px]" />
+        </button>
+        <div class="text-[10px] font-semibold text-slate-600 px-2 py-1 bg-slate-50 rounded-md border border-slate-200">
+          <span class="text-emerald-700 font-extrabold">{{ currentPage }}</span>
+          /
+          <span class="font-bold text-slate-800">{{ totalPages }}</span>
+        </div>
+        <button
+          type="button"
+          :disabled="currentPage === totalPages"
+          class="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all flex items-center justify-center"
+          aria-label="Halaman berikutnya"
+          @click="goNext"
+        >
+          <i class="fa-solid fa-chevron-right text-[10px]" />
+        </button>
+      </div>
     </div>
   </div>
 </template>

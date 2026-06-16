@@ -28,6 +28,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'update:modelValue': [value: DashboardPeriodFilter]
   'apply': [value: DashboardPeriodFilter]
+  'reset': []
 }>()
 
 const currentYear = new Date().getFullYear()
@@ -92,15 +93,33 @@ function onReset(): void {
   localDate.value = ''
   localYear.value = currentYear
   emit('apply', { mode: 'all', date: '', year: currentYear })
+  // Beri tahu parent untuk invalidate visual state (mis. untuk
+  // sembunyikan tombol Reset itu sendiri ketika filter sudah
+  // kembali ke default 'all' + date kosong).
+  emit('reset')
 }
 </script>
 
 <template>
   <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
     <div class="flex flex-col gap-3">
-      <div class="flex items-center gap-2">
-        <span class="w-1.5 h-5 rounded-full bg-emerald-500" />
-        <h3 class="font-bold text-slate-900 text-sm">Filter Periode Data</h3>
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="w-1.5 h-5 rounded-full bg-emerald-500" />
+          <h3 class="font-bold text-slate-900 text-sm">Filter Periode Data</h3>
+        </div>
+        <!-- Tombol reset selalu tersedia di header supaya user bisa
+             mengosongkan filter dalam 1 klik dari mode manapun
+             (Semua Waktu / Per Hari / Per Tahun). -->
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition-all"
+          title="Reset filter ke default (Semua Waktu)"
+          @click="onReset"
+        >
+          <i class="fa-solid fa-rotate-right" />
+          <span>Reset</span>
+        </button>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -183,11 +202,9 @@ function onReset(): void {
         </UiAppButton>
       </div>
 
-      <div v-else class="flex justify-end">
-        <UiAppButton variant="ghost" @click="onReset">
-          <i class="fa-solid fa-rotate-right" /> Reset Filter
-        </UiAppButton>
-      </div>
+      <!-- Footer action hanya untuk mode day/year yang butuh tombol
+           Terapkan. Tombol reset di header sudah cukup untuk mode
+           'all'. -->
     </div>
   </div>
 </template>

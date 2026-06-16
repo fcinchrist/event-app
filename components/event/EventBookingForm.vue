@@ -35,10 +35,23 @@ const wasAutofilled = ref(false)
  */
 let lookupTimer: ReturnType<typeof setTimeout> | null = null
 
-function onPhoneInput(): void {
+function onPhoneInput(e?: Event): void {
   wasAutofilled.value = false
   inlineError.value = null
   successMessage.value = null
+  // Strip karakter non-digit (spasi, +, -, dll) agar sesuai
+  // spek: "input no hp allow only no only". User yang paste nomor
+  // ber-prefix +62 / 62-xxx akan otomatis dinormalisasi visual
+  // ke digit saja. Normalisasi final ke format 08… tetap terjadi
+  // di server lewat `normalizePhone`.
+  if (e) {
+    const target = e.target as HTMLInputElement
+    const stripped = target.value.replace(/\D/g, '')
+    if (stripped !== target.value) {
+      target.value = stripped
+    }
+    noHp.value = stripped
+  }
   if (lookupTimer) clearTimeout(lookupTimer)
   lookupTimer = setTimeout(() => {
     void lookupUser()

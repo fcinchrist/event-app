@@ -102,8 +102,10 @@ async function onSubmit(): Promise<void> {
       <UiFormField
         v-model="form.noHp"
         label="Nomor HP / WhatsApp"
+        type="tel"
+        digits-only
         placeholder="081234567890"
-        hint="Akan dinormalisasi ke format 08… otomatis. Boleh pakai awalan 62 atau +62."
+        hint="Hanya angka 0–9. Akan dinormalisasi ke format 08… otomatis."
         required
       />
 

@@ -85,13 +85,16 @@ const kpi = computed(() => {
 
 /**
  * Okupansi dihitung dari event di periode aktif, dengan `taken`
- * dihitung dari registrasi di periode tersebut. Hanya 5 event
- * teratas yang ditampilkan.
+ * dihitung dari registrasi di periode tersebut. Tampilkan SEMUA
+ * event (bukan hanya 5 teratas) — pagination 5/halaman ditangani
+ * di dalam komponen `<DashboardOccupancyList>` lewat prop
+ * `page-size` (default 5). Paginasi di sisi komponen lebih
+ * ringan dan tidak menambah round-trip ke server.
  */
 const occupancyItems = computed<OccupancyItem[]>(() => {
   const list = periodRegistrations.value
   const events = store.periodEvents
-  return events.slice(0, 5).map((e) => ({
+  return events.map((e) => ({
     id: e.id,
     title: e.title,
     taken: list.filter((r) => r.eventId === e.id).length,

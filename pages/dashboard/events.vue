@@ -231,12 +231,16 @@ function onApplyPeriod(value: { mode: 'all' | 'day' | 'year'; date: string; year
   void store.setPeriod({ mode: 'year', year: value.year })
 }
 
-// Status tabs: Semua / Aktif / Dibatalkan / Selesai
-const TABS: { key: StatusFilter; label: string; icon: string }[] = [
-  { key: 'all', label: 'Semua', icon: 'fa-solid fa-layer-group' },
-  { key: 'Aktif', label: 'Aktif', icon: 'fa-solid fa-circle-check' },
-  { key: 'Dibatalkan', label: 'Dibatalkan', icon: 'fa-solid fa-circle-xmark' },
-  { key: 'Selesai', label: 'Selesai', icon: 'fa-solid fa-flag-checkered' },
+// Status tabs: Semua / Aktif / Dibatalkan / Selesai.
+// `shortLabel` adalah versi ringkas (≤ 4 huruf) yang dipakai di
+// mobile supaya 4 tab muat dalam 1 baris dengan label lengkap
+// (ramah untuk pengguna lanjut usia). Di `sm+` tetap pakai
+// `label` panjang.
+const TABS: { key: StatusFilter; label: string; shortLabel: string; icon: string }[] = [
+  { key: 'all', label: 'Semua', shortLabel: 'Semua', icon: 'fa-solid fa-layer-group' },
+  { key: 'Aktif', label: 'Aktif', shortLabel: 'Aktif', icon: 'fa-solid fa-circle-check' },
+  { key: 'Dibatalkan', label: 'Dibatalkan', shortLabel: 'Batal', icon: 'fa-solid fa-circle-xmark' },
+  { key: 'Selesai', label: 'Selesai', shortLabel: 'Selesai', icon: 'fa-solid fa-flag-checkered' },
 ]
 
 // Whitelist status valid supaya parse URL tidak accept string sembarang.
@@ -412,6 +416,26 @@ function openAdd(): void {
   showAddModal.value = true
 }
 
+/**
+ * Reset semua filter (search, status tab, period) ke default dan
+ * refetch dari halaman 1. Dipakai oleh tombol "Reset Filter" di
+ * toolbar. Period di-reset ke 'all' lewat `setPeriod` di store
+ * (otomatis refetch registrations + attendance, tapi tidak
+ * refetch events — kita handle manual di sini).
+ */
+async function resetAllFilters(): Promise<void> {
+  searchQuery.value = ''
+  statusFilter.value = 'all'
+  if (store.search !== '' || store.page !== 1) {
+    store.setSearch('')
+  }
+  await store.setPeriod({ mode: 'all' })
+  await Promise.all([
+    store.fetchEvents(),
+    store.fetchStatusCounts(''),
+  ])
+}
+
 async function onCreated(): Promise<void> {
   // Reset ke page 1 lalu refetch. Pakai `await` agar tabel + pager
   // update sinkron sebelum kita refresh participants count.
@@ -541,36 +565,79 @@ function categoryNameFor(categoryId: string | null): string | null {
         lebih besar (h-11) supaya mudah di-tap.
       -->
       <div class="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+        <!-- Baris atas: tombol reset filter. Hanya tampil jika
+             ada filter aktif (search / status != all / period != all). -->
+        <div
+          v-if="searchQuery || statusFilter !== 'all' || store.period.mode !== 'all'"
+          class="flex items-center justify-between gap-2 pb-1 border-b border-slate-100"
+        >
+          <span class="text-[11px] text-slate-500 font-semibold flex items-center gap-1.5 truncate">
+            <i class="fa-solid fa-filter text-emerald-600" />
+            Filter aktif:
+            <span v-if="searchQuery" class="inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-600">
+              "{{ searchQuery }}"
+            </span>
+            <span v-if="statusFilter !== 'all'" class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-emerald-200">
+              {{ statusFilter }}
+            </span>
+            <span v-if="store.period.mode !== 'all'" class="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-200">
+              {{ periodLabel }}
+            </span>
+          </span>
+          <button
+            type="button"
+            class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition-all shrink-0"
+            :disabled="store.isLoading"
+            @click="resetAllFilters"
+          >
+            <i class="fa-solid fa-rotate-right" />
+            <span>Reset Filter</span>
+          </button>
+        </div>
+
         <!-- Search -->
-        <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 h-12 sm:h-11 focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-emerald-500">
-          <i class="fa-solid fa-magnifying-glass text-slate-400 text-sm" />
+        <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 sm:px-4 h-12 sm:h-11 focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-emerald-500">
+          <i class="fa-solid fa-magnifying-glass text-slate-400 text-sm shrink-0" />
           <input
             v-model="searchQuery"
             type="text"
             placeholder="Cari judul atau lokasi..."
-            class="bg-transparent text-sm sm:text-sm w-full focus:outline-none placeholder:text-slate-400"
+            class="bg-transparent text-sm w-full min-w-0 focus:outline-none placeholder:text-slate-400"
             @input="onSearchInput"
           >
+          <button
+            v-if="searchQuery"
+            type="button"
+            class="text-slate-400 hover:text-rose-500 text-xs px-1 shrink-0"
+            aria-label="Bersihkan pencarian"
+            @click="searchQuery = ''"
+          >
+            <i class="fa-solid fa-circle-xmark" />
+          </button>
         </div>
 
-        <!-- Status Filter Tabs: grid 2-kolom di mobile supaya 3 tab
-             muat (Semua, Aktif, Selesai / Dibatalkan) tanpa scroll.
-             Pada sm+ kembali ke 1 baris dengan icon. -->
-        <div class="grid grid-cols-3 sm:flex sm:items-center sm:gap-1.5 sm:overflow-x-auto gap-2">
+        <!-- Status Filter Tabs: pakai `flex-1` di mobile supaya 4
+             tab membagi rata lebar layar (lebih mudah ditap oleh
+             pengguna lanjut usia) dan tetap muat dalam 1 baris
+             tanpa ke-cut. Pada sm+ kembali ke `flex` dengan lebar
+             auto dan label lebih panjang. Ikon di-sembunyikan di
+             mobile supaya ruang untuk label + count lebih lega. -->
+        <div class="flex items-stretch gap-1.5 sm:gap-1.5">
           <button
             v-for="tab in TABS"
             :key="tab.key"
             type="button"
-            class="h-11 sm:h-9 px-2 sm:px-3 rounded-xl sm:rounded-lg text-sm sm:text-xs font-bold transition-all flex items-center justify-center sm:justify-start gap-1.5 shrink-0 border"
+            class="flex-1 sm:flex-none h-12 sm:h-9 px-1.5 sm:px-3 rounded-xl sm:rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 min-w-0 border whitespace-nowrap"
             :class="statusFilter === tab.key
               ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-100'
               : 'bg-white text-slate-600 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'"
             @click="statusFilter = tab.key"
           >
-            <i :class="tab.icon" class="text-xs" />
-            <span class="truncate">{{ tab.label }}</span>
+            <i :class="tab.icon" class="hidden sm:inline text-xs shrink-0" />
+            <span class="truncate sm:hidden">{{ tab.shortLabel }}</span>
+            <span class="truncate hidden sm:inline">{{ tab.label }}</span>
             <span
-              class="px-1.5 py-0.5 rounded-md text-[11px] sm:text-[10px] font-extrabold min-w-[22px] text-center"
+              class="px-1 sm:px-1.5 py-0.5 rounded-md text-[10px] font-extrabold min-w-[18px] sm:min-w-[22px] text-center shrink-0"
               :class="statusFilter === tab.key ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-600'"
             >
               {{ countByStatus[tab.key] }}
