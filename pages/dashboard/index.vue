@@ -4,6 +4,7 @@ import { useAppStore } from '~/presentation/stores/app'
 import { useRegistrationStore } from '~/presentation/stores/registration'
 import type { OccupancyItem } from '~/components/dashboard/OccupancyList.vue'
 import type { ActivityLog } from '~/components/dashboard/RecentActivity.vue'
+import type { RegistrationWithUserAndEvent } from '~/domain/repositories/registration-repository'
 
 definePageMeta({
   layout: 'default',
@@ -26,7 +27,35 @@ const NAV_ITEMS = [
   { key: 'users', label: 'Master User', icon: 'fa-solid fa-users', to: '/dashboard/users' },
 ]
 
-function formatCheckInTimestamp(): string {
+function openAdd(): void {
+  showAddModal.value = true
+}
+
+function onCreated(): void {
+  store.fetchEvents()
+}
+
+import type { RegistrationStatus } from '~/domain/entities/registration'
+
+/**
+ * Source of truth untuk seluruh summary dashboard: data registrasi
+ * yang sudah di-filter dengan `store.period`. Dipakai oleh KPI,
+ * donut, occupancy, recent activity, dan attendance list.
+ */
+const periodRegistrations = computed<RegistrationWithUserAndEvent[]>(
+  () => store.periodRegistrations,
+)
+
+function formatCheckInTimestamp(reg: RegistrationWithUserAndEvent): string {
+  if (reg.checkinAt) {
+    const d = new Date(reg.checkinAt)
+    const yyyy = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    const hh = String(d.getHours()).padStart(2, '0')
+    const mi = String(d.getMinutes()).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
+  }
   const d = new Date()
   const yyyy = d.getFullYear()
   const mm = String(d.getMonth() + 1).padStart(2, '0')
@@ -36,71 +65,88 @@ function formatCheckInTimestamp(): string {
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
 }
 
-function openAdd(): void {
-  showAddModal.value = true
-}
-
-function onCreated(): void {
-  store.fetchEvents()
-}
-
-import type { RegistrationWithUser } from '~/domain/entities/registration'
-
-/**
- * Flatten `participantsByEvent` (map per-event) menjadi satu list.
- * Dipakai untuk hitung KPI global & recent activity.
- */
-const allParticipants = computed<RegistrationWithUser[]>(() => {
-  const all: RegistrationWithUser[] = []
-  for (const list of Object.values(regStore.participantsByEvent)) {
-    all.push(...list)
-  }
-  return all
-})
-
 const kpi = computed(() => {
-  const totalEvents = store.events.length
-  const totalReservations = allParticipants.value.length
-  const presentCount = allParticipants.value.filter((b: RegistrationWithUser) => b.status === 'Hadir').length
+  const list = periodRegistrations.value
+  const totalEvents = new Set(list.map((r) => r.event.id)).size
+  const totalReservations = list.length
+  const presentCount = list.filter((b) => (b.status as RegistrationStatus) === 'Hadir').length
   const absentCount = totalReservations - presentCount
   const percent = totalReservations > 0 ? Math.round((presentCount / totalReservations) * 100) : 0
   return { totalEvents, totalReservations, presentCount, absentCount, percent }
 })
 
+/**
+ * Okupansi dihitung dari event di periode aktif, dengan `taken`
+ * dihitung dari registrasi di periode tersebut. Hanya 5 event
+ * teratas yang ditampilkan.
+ */
 const occupancyItems = computed<OccupancyItem[]>(() => {
-  return store.events.slice(0, 5).map((e) => ({
+  const list = periodRegistrations.value
+  const events = store.periodEvents
+  return events.slice(0, 5).map((e) => ({
     id: e.id,
     title: e.title,
-    taken: regStore.getSlotsTakenByEvent(e.id),
+    taken: list.filter((r) => r.eventId === e.id).length,
     quota: e.quota,
   }))
 })
 
 const recentActivity = computed<ActivityLog[]>(() => {
-  const eventTitleMap = new Map<string, string>(
-    appStore.events.map((e) => [e.id, e.title]),
-  )
-  return allParticipants.value
-    .filter((b) => b.status === 'Hadir')
+  return periodRegistrations.value
+    .filter((b) => (b.status as RegistrationStatus) === 'Hadir')
     .slice(-5)
     .reverse()
     .map((b) => ({
       id: b.id,
       name: b.user.nama,
-      eventTitle: eventTitleMap.get(b.eventId) ?? 'Event tidak diketahui',
-      checkInTime: formatCheckInTimestamp(),
+      eventTitle: b.event.title,
+      checkInTime: formatCheckInTimestamp(b),
     }))
 })
+
+/**
+ * Label periode aktif, untuk ditampilkan di header & section attendance.
+ *
+ * - `all`  → "Semua Waktu"
+ * - `day`  → "Hari: 16/06/2026" (format dd/mm/yyyy, sesuai spek UI)
+ * - `year` → "Tahun: 2026"
+ */
+const periodLabel = computed<string>(() => {
+  const p = store.period
+  if (p.mode === 'all') return 'Semua Waktu'
+  if (p.mode === 'day' && p.date) {
+    const [y, m, d] = p.date.split('-')
+    return `Hari: ${d}/${m}/${y}`
+  }
+  if (p.mode === 'year') return `Tahun: ${p.year}`
+  return 'Semua Waktu'
+})
+
+function onApplyPeriod(value: { mode: 'all' | 'day' | 'year'; date: string; year: number }): void {
+  if (value.mode === 'all') {
+    store.setPeriod({ mode: 'all' })
+    return
+  }
+  if (value.mode === 'day') {
+    if (!value.date) return
+    store.setPeriod({ mode: 'day', date: value.date })
+    return
+  }
+  store.setPeriod({ mode: 'year', year: value.year })
+}
 
 onMounted(async () => {
   if (appStore.authUser === null) {
     await appStore.initAuth()
   }
-  await store.fetchEvents()
-  // Fetch participants per event for KPIs and recent activity
-  await Promise.all(
-    store.events.map((e) => regStore.fetchParticipants(e.id)),
-  )
+  // Events dimuat terpisah (dipakai oleh master-event lookup, dll),
+  // summary data utama di-fetch paralel via `periodRegistrations` +
+  // `attendanceSummaries` di store.
+  await Promise.all([
+    store.fetchEvents(),
+    store.fetchRegistrationsByPeriod(),
+    store.fetchAttendance(),
+  ])
 })
 </script>
 
@@ -116,21 +162,34 @@ onMounted(async () => {
           <p class="text-xs text-slate-500">
             Statistik dan agenda terbaru komunitas {{ config.public.companyName }}.
           </p>
+          <!-- Badge periode aktif (selalu terlihat di header) -->
+          <div class="mt-2 inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg text-[11px] font-semibold">
+            <i class="fa-solid fa-filter" />
+            Periode aktif: {{ periodLabel }}
+          </div>
         </div>
         <UiAppButton variant="primary" @click="openAdd">
           <i class="fa-solid fa-plus-circle" /> Buat Event Baru
         </UiAppButton>
       </header>
 
+      <!-- Filter periode (prominent, di paling atas summary) -->
+      <DashboardPeriodFilter
+        :model-value="store.period"
+        :is-loading="store.isRegistrationsLoading || store.isAttendanceLoading"
+        @update:model-value="(v) => store.period = v"
+        @apply="onApplyPeriod"
+      />
+
       <!-- KPI: 4 emerald cards, or skeleton while loading -->
-      <DashboardKpiSkeleton v-if="store.isLoading" />
+      <DashboardKpiSkeleton v-if="store.isRegistrationsLoading && store.periodRegistrations.length === 0" />
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <DashboardStatCard
-          label="Total Event Aktif"
+          label="Total Event"
           :value="kpi.totalEvents"
           icon="fa-solid fa-calendar"
           tone="emerald"
-          hint="Terdaftar di sistem"
+          :hint="`${periodLabel}`"
           hint-icon="fa-solid fa-calendar"
         />
         <DashboardStatCard
@@ -138,7 +197,7 @@ onMounted(async () => {
           :value="kpi.totalReservations"
           icon="fa-solid fa-ticket"
           tone="emerald"
-          hint="Akumulasi semua event"
+          :hint="`Periode: ${periodLabel}`"
           hint-icon="fa-solid fa-arrow-trend-up"
         />
         <DashboardStatCard
@@ -154,7 +213,7 @@ onMounted(async () => {
           :value="`${kpi.percent}%`"
           icon="fa-solid fa-chart-pie"
           tone="emerald"
-          hint="Tingkat kehadiran global"
+          hint="Tingkat kehadiran pada periode"
           hint-icon="fa-solid fa-percent"
         />
       </div>
@@ -162,7 +221,7 @@ onMounted(async () => {
       <!-- Charts Row: skeleton for donut + occupancy while loading -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <DashboardDonutChart
-          v-if="store.isLoading"
+          v-if="store.isRegistrationsLoading && store.periodRegistrations.length === 0"
           class="lg:col-span-1"
           :present-count="0"
           :absent-count="0"
@@ -176,7 +235,7 @@ onMounted(async () => {
 
         <!-- Occupancy skeleton: 5 bar rows with label + value -->
         <div
-          v-if="store.isLoading"
+          v-if="store.isRegistrationsLoading && store.periodRegistrations.length === 0"
           class="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"
         >
           <UiSkeletonBlock variant="bar" width="w-40" height="h-4" rounded="rounded" />
@@ -198,9 +257,16 @@ onMounted(async () => {
         />
       </div>
 
+      <!-- Counting Kehadiran All Anggota (pakai filter periode yang sama) -->
+      <DashboardAttendanceCountList
+        :items="store.attendanceSummaries"
+        :is-loading="store.isAttendanceLoading"
+        :period-label="periodLabel"
+      />
+
       <!-- Recent Activity: skeleton for the check-in list -->
       <div
-        v-if="store.isLoading"
+        v-if="store.isRegistrationsLoading && store.periodRegistrations.length === 0"
         class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"
       >
         <UiSkeletonBlock variant="bar" width="w-48" height="h-4" />

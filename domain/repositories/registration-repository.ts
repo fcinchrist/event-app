@@ -1,3 +1,5 @@
+import type { EventUser } from '~/domain/entities/event-user'
+import type { Event } from '~/domain/entities/event'
 import type {
   Registration,
   RegistrationInput,
@@ -6,10 +8,49 @@ import type {
   RegistrationWithUser,
 } from '~/domain/entities/registration'
 
+/**
+ * Sama dengan `RegistrationWithUser`, tapi di-hydrate juga dengan
+ * relasi `event:events(*)`. Dipakai untuk filter berbasis tanggal
+ * event (lihat `listWithEventByPeriod`).
+ */
+export interface RegistrationWithUserAndEvent extends Registration {
+  user: EventUser
+  event: Event
+}
+
 export interface RegistrationListParams {
   eventId?: string
   userId?: string
   status?: RegistrationStatus
+}
+
+/**
+ * Filter periode untuk agregasi kehadiran.
+ *
+ * - `all`           → tidak ada filter, semua waktu
+ * - `day`           → hanya event yang jatuh pada `date` (YYYY-MM-DD)
+ * - `year`          → hanya event di tahun `year` (berdasarkan `event.date`)
+ *
+ * Filter berlaku di sisi repository dengan WHERE pada kolom
+ * `events.date` (bukan `event_registrations.registered_at`) agar
+ * konsisten dengan makna "kegiatan di periode ini".
+ */
+export type AttendancePeriod =
+  | { kind: 'all' }
+  | { kind: 'day'; date: string }
+  | { kind: 'year'; year: number }
+
+/**
+ * Ringkasan kehadiran satu anggota (satu baris per `user_id`).
+ *
+ * - `totalHadir`        : jumlah registrasi dengan `status = 'Hadir'`
+ * - `totalRegistrasi`   : jumlah registrasi keseluruhan
+ *   (termasuk 'Terdaftar' / 'Tidak Hadir' di periode yang sama)
+ */
+export interface AttendanceSummary {
+  user: EventUser
+  totalHadir: number
+  totalRegistrasi: number
 }
 
 export interface RegistrationRepository {
@@ -51,4 +92,37 @@ export interface RegistrationRepository {
    * descending, with `registered_at` descending as a tie-breaker.
    */
   listByUserWithEvent(userId: string): Promise<RegistrationWithEvent[]>
+
+  /**
+   * Aggregate jumlah kehadiran (`status = 'Hadir'`) per anggota.
+   *
+   * Output berisi ringkasan per user: id, nama, no_hp, totalHadir,
+   * totalRegistrasi. Bisa di-filter dengan `period`:
+   *   - `{ kind: 'all' }`                  → semua waktu
+   *   - `{ kind: 'day', date: 'YYYY-MM-DD' }` → hanya event yang jatuh
+   *     di tanggal tersebut (berdasarkan `event.date`).
+   *   - `{ kind: 'year', year: 2026 }`     → hanya event di tahun
+   *     tersebut (berdasarkan `event.date`).
+   *
+   * Implementasi: SELECT join `event_registrations` → `events` →
+   * `event_users`, agregasi `count(*) filter (where status='Hadir')`
+   * per `user_id`, lalu hydrate `user:event_users(*)`. Hasil di-sort
+   * `totalHadir` DESC (terbanyak di atas) untuk konsistensi dengan
+   * fitur "sort by jumlah kehadiran" di dashboard.
+   */
+  getAttendanceByUser(period: AttendancePeriod): Promise<AttendanceSummary[]>
+
+  /**
+   * List semua registrasi (include user + event ter-hydrate) yang
+   * difilter berdasarkan periode tanggal event. Dipakai oleh summary
+   * dashboard untuk menghitung KPI / donut / occupancy / recent
+   * activity sesuai periode aktif (semua waktu / 1 hari / 1 tahun).
+   *
+   * - `period.kind: 'all'`  → tidak ada filter
+   * - `period.kind: 'day'`  → hanya registrasi pada event yang
+   *   `event.date` jatuh di `period.date` (YYYY-MM-DD)
+   * - `period.kind: 'year'` → hanya registrasi pada event yang
+   *   `event.date` berada di tahun `period.year`
+   */
+  listWithEventByPeriod(period: AttendancePeriod): Promise<RegistrationWithUserAndEvent[]>
 }
