@@ -2,9 +2,12 @@
 import { useDashboardStore } from '~/presentation/stores/dashboard'
 import { useAppStore } from '~/presentation/stores/app'
 import { useRegistrationStore } from '~/presentation/stores/registration'
+import { usePeriodQuerySync } from '~/presentation/composables/useUrlQuerySync'
 import type { OccupancyItem } from '~/components/dashboard/OccupancyList.vue'
 import type { ActivityLog } from '~/components/dashboard/RecentActivity.vue'
 import type { RegistrationWithUserAndEvent } from '~/domain/repositories/registration-repository'
+import type { RegistrationStatus } from '~/domain/entities/registration'
+import type { DashboardPeriodFilter } from '~/presentation/stores/dashboard'
 
 definePageMeta({
   layout: 'default',
@@ -34,8 +37,6 @@ function openAdd(): void {
 function onCreated(): void {
   store.fetchEvents()
 }
-
-import type { RegistrationStatus } from '~/domain/entities/registration'
 
 /**
  * Source of truth untuk seluruh summary dashboard: data registrasi
@@ -122,17 +123,36 @@ const periodLabel = computed<string>(() => {
   return 'Semua Waktu'
 })
 
+/**
+ * Sinkronkan `store.period` ke query string URL (`?period=...&date=
+ * ...&year=...`). Pakai computed wrapper supaya perubahan dari URL
+ * (back/forward button) dan dari UI (period filter) tetap satu
+ * sumber kebenaran di store.
+ */
+const periodRef = computed<DashboardPeriodFilter>({
+  get: () => store.period,
+  set: (v) => {
+    void store.setPeriod({ mode: v.mode, date: v.date, year: v.year })
+  },
+})
+usePeriodQuerySync(periodRef, { history: 'replace' })
+
+/**
+ * Handler yang dipanggil oleh `<DashboardPeriodFilter @apply>`.
+ * Mutate `store.period` lewat `setPeriod()` (otomatis disinkronkan
+ * ke URL oleh composable di atas).
+ */
 function onApplyPeriod(value: { mode: 'all' | 'day' | 'year'; date: string; year: number }): void {
   if (value.mode === 'all') {
-    store.setPeriod({ mode: 'all' })
+    void store.setPeriod({ mode: 'all' })
     return
   }
   if (value.mode === 'day') {
     if (!value.date) return
-    store.setPeriod({ mode: 'day', date: value.date })
+    void store.setPeriod({ mode: 'day', date: value.date })
     return
   }
-  store.setPeriod({ mode: 'year', year: value.year })
+  void store.setPeriod({ mode: 'year', year: value.year })
 }
 
 onMounted(async () => {

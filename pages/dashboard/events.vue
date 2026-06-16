@@ -6,6 +6,11 @@ import { useEventCategoryStore } from '~/presentation/stores/event-category'
 import { resolveEventImage } from '~/utils/event-image'
 import type { Event } from '~/domain/entities/event'
 import type { EventStatusValue } from '~/types/common'
+import type { DashboardPeriodFilter } from '~/presentation/stores/dashboard'
+import {
+  useQueryParamSync,
+  usePeriodQuerySync,
+} from '~/presentation/composables/useUrlQuerySync'
 
 definePageMeta({
   layout: 'default',
@@ -193,6 +198,7 @@ function onApplyPeriod(value: { mode: 'all' | 'day' | 'year'; date: string; year
   void store.setPeriod({ mode: 'year', year: value.year })
 }
 
+// Status tabs: Semua / Aktif / Dibatalkan / Selesai
 const TABS: { key: StatusFilter; label: string; icon: string }[] = [
   { key: 'all', label: 'Semua', icon: 'fa-solid fa-layer-group' },
   { key: 'Aktif', label: 'Aktif', icon: 'fa-solid fa-circle-check' },
@@ -200,18 +206,126 @@ const TABS: { key: StatusFilter; label: string; icon: string }[] = [
   { key: 'Selesai', label: 'Selesai', icon: 'fa-solid fa-flag-checkered' },
 ]
 
-let searchTimer: ReturnType<typeof setTimeout> | null = null
-function onSearchInput(): void {
-  if (searchTimer) clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
-    store.setSearch(searchQuery.value)
-    store.fetchEvents()
-  }, 350)
+// Whitelist status valid supaya parse URL tidak accept string sembarang.
+const STATUS_WHITELIST: ReadonlyArray<StatusFilter> = [
+  'all', 'Aktif', 'Dibatalkan', 'Selesai',
+]
+
+/**
+ * Filter yang ada di URL selalu disinkronkan ke store & auto-refetch
+ * data event. Pola ini best-practice SPA: URL adalah "shareable state",
+ * store adalah "UI state", dan ref lokal adalah "instant feedback"
+ * (mis. search box yang ngetik tanpa debounce URL).
+ *
+ *  - `q`, `status`, `period` → `router.replace` (tidak nambah history)
+ *  - `page`                  → `router.push`   (back-button bisa
+ *                                               navigate antar halaman)
+ */
+const VALID_STATUSES = new Set<string>(STATUS_WHITELIST)
+
+function parseStatus(raw: string): StatusFilter | null {
+  return VALID_STATUSES.has(raw) ? (raw as StatusFilter) : null
 }
 
+// `searchQuery` ref lokal adalah sumber utama untuk input box. URL sync
+// write ke store.fetchEvents (debounced via watcher di bawah) supaya
+// tidak spam API setiap keystroke.
+useQueryParamSync<string>('q', searchQuery, {
+  history: 'replace',
+  serialize: (v) => (v.trim() ? v.trim() : null),
+  parse: (raw) => raw,
+})
+
+// Status filter: ref lokal → URL (replace) → ref. Saat berubah kita
+// reset page=1 supaya user tidak stuck di halaman kosong.
+useQueryParamSync<StatusFilter>('status', statusFilter, {
+  history: 'replace',
+  serialize: (v) => (v === 'all' ? null : v),
+  parse: parseStatus,
+})
+
+// Page: pakai computed wrapper yang write ke `store.page` saat URL
+// berubah. Penting: page sync pakai `router.push` agar back-button
+// bisa kembali ke halaman sebelumnya (UX standar).
+const pageRef = computed<number>({
+  get: () => store.page,
+  set: (v) => {
+    if (v === store.page) return
+    store.setPage(v)
+  },
+})
+useQueryParamSync<number>('page', pageRef, {
+  history: 'push',
+  serialize: (v) => (v > 1 ? String(v) : null),
+  parse: (raw) => {
+    const n = Number(raw)
+    return Number.isInteger(n) && n > 0 ? n : null
+  },
+})
+
+// Period (objek mode/date/year). Single source of truth di store;
+// URL sync bersifat dua arah.
+const periodRef = computed<DashboardPeriodFilter>({
+  get: () => store.period,
+  set: (v) => {
+    // setPeriod() sudah validasi + refetch registrations + attendance
+    void store.setPeriod({ mode: v.mode, date: v.date, year: v.year })
+  },
+})
+usePeriodQuerySync(periodRef, { history: 'replace' })
+
+/**
+ * Debounced search: tiap kali `searchQuery` berubah (dari user ngetik
+ * ATAU dari URL sync), trigger fetch setelah 350ms idle. Reset ke
+ * page=1 supaya hasil baru langsung di halaman pertama.
+ */
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+watch(searchQuery, (next) => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    if (store.search !== next) {
+      store.setSearch(next)
+    } else {
+      // Same value, just refetch to be safe (e.g. after create/delete).
+      void store.fetchEvents()
+    }
+  }, 350)
+})
+
+/**
+ * Watch status filter → reset ke page 1 + refetch. Penting supaya
+ * user tidak stuck di page 5 yang ternyata kosong setelah filter
+ * status berubah.
+ */
+watch(statusFilter, (next, prev) => {
+  if (next === prev) return
+  if (store.page !== 1) {
+    store.setPage(1)
+  }
+  void store.fetchEvents()
+})
+
+/**
+ * Watch page (dari URL push atau programmatic) → refetch.
+ */
+watch(pageRef, (next, prev) => {
+  if (next === prev) return
+  void store.fetchEvents()
+})
+
+function onSearchInput(): void {
+  // Watcher `searchQuery` di atas sudah handle debounce + refetch.
+  // Fungsi ini tetap ada agar @input di template eksplisit
+  // (mencegah IDE/template warning "no handler").
+}
+
+/**
+ * Programmatic pagination: set page di store, watcher pageRef
+ * akan refetch otomatis. URL sync akan push ke history supaya
+ * back-button bisa kembali ke halaman sebelumnya.
+ */
 function changePage(page: number): void {
   store.setPage(page)
-  store.fetchEvents()
 }
 
 async function handleDelete(event: Event): Promise<void> {
