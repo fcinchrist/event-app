@@ -60,12 +60,14 @@ export class SupabaseUserRepository implements UserRepository {
 
   async create(input: EventUserFormData): Promise<EventUser> {
     const id = await generateUniqueId('USR', async (candidate) => {
-      const { data } = await this.client
-        .from('event_users')
-        .select('id')
-        .eq('id', candidate)
-        .maybeSingle()
-      return data === null
+      // Use SECURITY DEFINER RPC because anon SELECT on event_users
+      // is blocked by RLS (migration 006).
+      const { data, error } = await this.client.rpc('id_exists', {
+        p_table: 'event_users',
+        p_candidate: candidate,
+      })
+      if (error) throw error
+      return data === true
     })
 
     const phoneNormalized = normalizePhone(input.noHp) ?? input.noHp
@@ -77,13 +79,21 @@ export class SupabaseUserRepository implements UserRepository {
       member_type: input.memberType ?? 'internal',
     }
 
-    const { data, error } = await this.client
+    const { error } = await this.client
       .from('event_users')
       .insert(row)
-      .select('*')
-      .single()
     if (error) throw error
-    return mapUserRow(data)
+    // Build the domain object locally — we cannot `.select('*')` after
+    // insert because anon has no SELECT grant on this table.
+    return mapUserRow({
+      id: row.id,
+      no_hp: row.no_hp,
+      nama: row.nama,
+      user_status: row.user_status,
+      member_type: row.member_type,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
   }
 
   async update(id: string, input: EventUserFormData): Promise<EventUser> {
@@ -95,14 +105,20 @@ export class SupabaseUserRepository implements UserRepository {
     if (input.userStatus !== undefined) row.user_status = input.userStatus
     if (input.memberType !== undefined) row.member_type = input.memberType
 
-    const { data, error } = await this.client
+    const { error } = await this.client
       .from('event_users')
       .update(row)
       .eq('id', id)
-      .select('*')
-      .single()
     if (error) throw error
-    return mapUserRow(data)
+    return mapUserRow({
+      id,
+      no_hp: row.no_hp as string,
+      nama: row.nama as string,
+      user_status: (row.user_status as string | undefined) ?? 'active',
+      member_type: (row.member_type as string | undefined) ?? 'internal',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
   }
 
   async delete(id: string): Promise<void> {

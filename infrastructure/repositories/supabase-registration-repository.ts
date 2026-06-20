@@ -143,15 +143,18 @@ export class SupabaseRegistrationRepository implements RegistrationRepository {
     const supabase = useSupabaseClient()
 
     const id = await generateUniqueId('REG', async (candidate: string) => {
-      const { data } = await supabase
-        .from('event_registrations')
-        .select('id')
-        .eq('id', candidate)
-        .maybeSingle()
-      return data !== null
+      // Use SECURITY DEFINER RPC because anon SELECT on event_registrations
+      // is blocked by RLS (migration 006).
+      const { data, error } = await supabase.rpc('id_exists', {
+        p_table: 'event_registrations',
+        p_candidate: candidate,
+      })
+      if (error) throw error
+      return data === true
     })
 
-    const { data, error } = await supabase
+    const now = new Date().toISOString()
+    const { error } = await supabase
       .from('event_registrations')
       .insert({
         id,
@@ -159,8 +162,6 @@ export class SupabaseRegistrationRepository implements RegistrationRepository {
         event_id: input.eventId,
         status: 'Terdaftar',
       })
-      .select('*')
-      .single()
 
     if (error) {
       if (error.code === '23505') {
@@ -169,7 +170,16 @@ export class SupabaseRegistrationRepository implements RegistrationRepository {
       throw new Error(error.message)
     }
 
-    return mapRegistrationRow(data)
+    // Build the domain object locally — we cannot `.select('*')` after
+    // insert because anon has no SELECT grant on this table.
+    return mapRegistrationRow({
+      id,
+      user_id: input.userId,
+      event_id: input.eventId,
+      status: 'Terdaftar',
+      checkin_at: null,
+      registered_at: now,
+    })
   }
 
   async updateStatus(
@@ -227,15 +237,15 @@ export class SupabaseRegistrationRepository implements RegistrationRepository {
 
   async countByEvent(eventId: string): Promise<number> {
     const supabase = useSupabaseClient()
-    const { count, error } = await supabase
-      .from('event_registrations')
-      .select('id', { count: 'exact', head: true })
-      .eq('event_id', eventId)
-
+    // Use SECURITY DEFINER RPC because anon SELECT on event_registrations
+    // is blocked by RLS (migration 006).
+    const { data, error } = await supabase.rpc('count_registrations_by_event', {
+      p_event_id: eventId,
+    })
     if (error) {
       throw new Error(error.message)
     }
-    return count ?? 0
+    return Number(data ?? 0)
   }
 
   async listByUserWithEvent(
