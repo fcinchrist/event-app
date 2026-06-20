@@ -246,10 +246,10 @@ async function onSubmit(): Promise<void> {
           </div>
         </div>
         <p class="text-[11px] text-slate-400 mt-1">
-          Format: JPG, PNG, GIF, atau WebP (maks. 5MB). Otomatis dikompres dan
-          dikonversi ke WebP. SVG tidak didukung. (Pengguna iPhone: pilih
-          &ldquo;Most Compatible&rdquo; di Settings &rarr; Camera &rarr; Formats.)
-          Kosongkan jika ingin poster default.
+          Format: JPG, PNG, GIF, atau WebP (maks. 5MB). Otomatis dikompres ke
+          WebP ~200KB (quality 65%, max 1280px). SVG tidak didukung.
+          (Pengguna iPhone: pilih &ldquo;Most Compatible&rdquo; di Settings &rarr;
+          Camera &rarr; Formats.) Kosongkan jika ingin poster default.
         </p>
       </div>
 
