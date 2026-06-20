@@ -11,6 +11,8 @@ import { LogoutUser } from '~/application/use-cases/logout-user'
 import { RequestPasswordReset } from '~/application/use-cases/request-password-reset'
 import { UpdatePassword } from '~/application/use-cases/update-password'
 import { ChangePassword } from '~/application/use-cases/change-password'
+import { useLoginThrottle } from '~/presentation/composables/useLoginThrottle'
+import { useRequestPasswordResetThrottle } from '~/presentation/composables/useRequestPasswordResetThrottle'
 
 interface AppState {
   role: AppRole
@@ -307,6 +309,13 @@ export const useAppStore = defineStore('app', {
     },
 
     async loginAdmin(email: string, password: string): Promise<string | null> {
+      // Guard throttle (Bug #2 — Login Brute Force mitigation).
+      // Kalau email ini sedang dalam lockout, jangan sampai request
+      // ke Supabase — langsung kembalikan pesan lockout.
+      const throttle = useLoginThrottle()
+      const lockMsg = throttle.check(email)
+      if (lockMsg) return lockMsg
+
       try {
         const repo = new SupabaseAuthRepository()
         const loginUseCase = new LoginUser(repo)
@@ -314,7 +323,16 @@ export const useAppStore = defineStore('app', {
         if (result.success && result.user) {
           this.authUser = result.user
           this.role = 'admin'
+          // Sukses login → reset counter throttle untuk identifier ini.
+          throttle.reset()
           return null
+        }
+        // Gagal login (kredensial salah) → catat ke throttle.
+        throttle.recordFailure(email)
+        // Tampilkan pesan throttle kalau sekarang sudah ke-trigger,
+        // supaya admin tahu mereka sudah dekat / melampaui limit.
+        if (throttle.isLocked.value) {
+          return throttle.check(email) ?? 'Login gagal.'
         }
         return result.error ?? 'Login gagal.'
       } catch {
@@ -336,14 +354,31 @@ export const useAppStore = defineStore('app', {
     },
 
     async requestPasswordReset(email: string): Promise<string | null> {
+      // Cooldown client-side (Bug #3 — anti email enumeration / spam).
+      // Mencegah admin (atau bot) mengirim request forgot-password
+      // berulang-ulang dalam window pendek. Server-side rate-limit
+      // Supabase tetap gate-of-truth.
+      const cooldown = useRequestPasswordResetThrottle()
+      if (cooldown.isCoolingDown.value) {
+        const seconds = Math.ceil(cooldown.remainingMs.value / 1000)
+        return `Mohon tunggu ${seconds} detik sebelum mengirim ulang.`
+      }
+
       try {
         const repo = new SupabaseAuthRepository()
         const useCase = new RequestPasswordReset(repo)
         const redirectTo = `${window.location.origin}/admin/reset-password`
         const result = await useCase.execute(email, redirectTo)
+        // Selalu trigger cooldown setelah attempt — baik success maupun
+        // empty-email — supaya attacker tidak bisa membedakan cabang.
+        cooldown.trigger()
         if (result.success) return null
+        // result.error dari use-case sekarang HANYA muncul untuk empty
+        // email (kasus ini sudah di-delay di use-case layer juga).
         return result.error ?? 'Gagal mengirim email reset.'
       } catch {
+        // Trigger cooldown juga di path exception supaya konsisten.
+        cooldown.trigger()
         return 'Gagal terhubung ke server.'
       }
     },

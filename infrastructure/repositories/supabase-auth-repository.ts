@@ -45,6 +45,30 @@ export class SupabaseAuthRepository implements AuthRepository {
     }
   }
 
+  /**
+   * resetPasswordForEmail — anti email enumeration (Bug #3).
+   *
+   * Sebelumnya: method ini melempar error apa adanya dari Supabase Auth
+   * ("Email not confirmed", "User not found", "Email rate limit exceeded").
+   * Itu memungkinkan attacker untuk membedakan "email terdaftar" vs
+   * "tidak terdaftar" dengan membandingkan response.
+   *
+   * Sekarang: SELALU return success ke caller. Kalau Supabase return error,
+   * kita log warning secara internal (untuk monitoring admin) tapi TIDAK
+   * melempar ke caller. UI atas (`forgot-password.vue`) tetap menampilkan
+   * pesan generik yang sama baik untuk email terdaftar maupun tidak.
+   *
+   * Caveat: error kode `over_email_send_rate_limit` tetap kita log sebagai
+   * warning karena itu sinyal teknis (bukan enumerasi). Untuk itu, use-case
+   * layer (`request-password-reset.ts`) menambahkan constant delay supaya
+   * timing tidak bocor apakah email valid atau tidak.
+   *
+   * Error codes yang kita telan (return success):
+   *   - email_not_confirmed
+   *   - user_not_found  (legacy; beberapa versi Supabase pakai ini)
+   *   - validation_failed (email format salah — bukan enumeration vector,
+   *     tapi UI sudah validasi sendiri, jadi tetap silent)
+   */
   async resetPasswordForEmail(email: string, redirectTo: string): Promise<void> {
     const supabase = useSupabaseClient()
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -52,7 +76,15 @@ export class SupabaseAuthRepository implements AuthRepository {
     })
 
     if (error) {
-      throw new Error(error.message)
+      // Log untuk monitoring admin (tidak ditampilkan ke caller).
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[auth] resetPasswordForEmail returned an error (silently swallowed to prevent email enumeration):',
+        error.message,
+      )
+      // Silent: return success regardless. Caller tidak boleh propagate
+      // error ini ke UI karena akan membuka enumeration vector.
+      return
     }
   }
 
