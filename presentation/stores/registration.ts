@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia'
-import type { EventUser } from '~/domain/entities/event-user'
+import type {
+  EventUser,
+  EventUserPublicSummary,
+} from '~/domain/entities/event-user'
 import type { RegistrationStatus } from '~/domain/entities/registration'
 import type {
   Registration,
@@ -212,11 +215,12 @@ export const useRegistrationStore = defineStore('registration', {
     },
 
     /**
-     * Lookup user by phone (untuk autofill nama di form booking publik).
-     * Return null kalau no HP tidak valid atau user tidak ditemukan.
-     * Dipakai di EventBookingForm (debounce 600ms / on blur).
+     * Public-safe phone lookup for booking-form autofill. Returns only
+     * `{ id, nama }` (see migration 006). Null if not found / invalid.
      */
-    async lookupUserByPhone(rawPhone: string): Promise<EventUser | null> {
+    async lookupUserByPhone(
+      rawPhone: string,
+    ): Promise<EventUserPublicSummary | null> {
       this.isLookingUpUser = true
       this.error = null
       try {
@@ -234,30 +238,27 @@ export const useRegistrationStore = defineStore('registration', {
     },
 
     /**
-     * Submit booking publik. Melakukan:
-     *   1. Normalisasi no HP
-     *   2. Validasi event (ada, status Aktif, tanggal belum lewat)
-     *   3. Cari / buat user master
-     *   4. Cek duplikat (userId, eventId)
-     *   5. Insert registrasi
-     *   6. Refresh list peserta + count untuk event tersebut
-     *
-     * Return null kalau sukses, atau string error kalau gagal
-     * (dipakai form untuk tampilkan Alert / inline error).
+     * Submit a public booking. Validates the event, resolves/creates the
+     * user, checks for duplicates, then inserts. Returns null on success
+     * or an error string for the form to display.
      */
     async registerForEvent(input: {
       noHp: string
-      nama?: string
+      nama: string
       eventId: string
     }): Promise<string | null> {
       this.isSubmittingBooking = true
       this.error = null
       try {
         const userRepo = new SupabaseUserRepository()
-        const regRepo = new SupabaseRegistrationRepository()
         const eventRepo = new SupabaseEventRepository()
-        const useCase = new BookEvent(userRepo, regRepo, eventRepo)
-        await useCase.execute(input)
+        const regRepo = new SupabaseRegistrationRepository()
+        const useCase = new BookEvent(userRepo, eventRepo, regRepo)
+        await useCase.execute({
+          eventId: input.eventId,
+          noHp: input.noHp,
+          nama: input.nama ?? '',
+        })
         // Refresh both the participants list and the count cache for
         // this event.
         await Promise.all([

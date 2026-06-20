@@ -55,6 +55,23 @@ export interface EventUser {
 }
 
 /**
+ * Bentuk minimal `EventUser` yang BOLEH dikembalikan ke klien publik
+ * (form booking tanpa login). Hanya `id` & `nama` — tanpa `noHp`,
+ * `userStatus`, `memberType`, atau timestamp internal.
+ *
+ * Ini adalah hasi output dari RPC
+ * [`public.lookup_event_user_by_phone(text)`](supabase/migrations/006_admin_users_and_rls_hardening.sql)
+ * yang dipasang di migration #6 untuk menutup kebocoran PII lewat
+ * `event_users_read_public` (migration 002).
+ *
+ * Pakai tipe ini untuk binding state autofill, BUKAN [`EventUser`].
+ */
+export interface EventUserPublicSummary {
+  id: string
+  nama: string
+}
+
+/**
  * Data yang dikirim caller untuk membuat / memperbarui user.
  *
  * `userStatus` dan `memberType` dibuat OPSIONAL di level form data

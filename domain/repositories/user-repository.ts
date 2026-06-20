@@ -1,4 +1,8 @@
-import type { EventUser, EventUserFormData } from '~/domain/entities/event-user'
+import type {
+  EventUser,
+  EventUserFormData,
+  EventUserPublicSummary,
+} from '~/domain/entities/event-user'
 import type { PaginatedResult } from '~/types/pagination'
 
 /**
@@ -44,9 +48,35 @@ export interface UserRepository {
   /**
    * Cari user berdasarkan nomor HP yang sudah dinormalisasi
    * (digits only, awalan '0', panjang 10-15).
-   * Return null kalau tidak ditemukan.
+   *
+   * Return ENTITY [`EventUser`] lengkap (termasuk `userStatus`,
+   * `memberType`, `createdAt`). Dipakai oleh alur booking
+   * ([`BookEvent`](application/use-cases/book-event.ts)) yang
+   * butuh semua kolom untuk konsistensi default
+   * [`RegisterUser`](application/use-cases/register-user.ts).
+   *
+   * Karena [`SupabaseUserRepository.findByPhone`] sekarang
+   * dipanggil via RPC `SECURITY DEFINER`, method ini TIDAK boleh
+   * dipanggil dari klien publik untuk enumerasi massal (lihat
+   * catatan keamanan di implementasinya).
+   *
+   * Untuk autofill form publik, gunakan
+   * [`UserRepository.findByPhonePublic`] yang return shape
+   * minimal.
    */
   findByPhone(noHp: string): Promise<EventUser | null>
+
+  /**
+   * Lookup publik AMAN — hanya `(id, nama)`.
+   *
+   * Dipakai oleh [`FindUserByPhone`](application/use-cases/find-user-by-phone.ts)
+   * untuk autofill form booking tanpa mengekspos PII lain. Backed
+   * by RPC [`public.lookup_event_user_by_phone(text)`](supabase/migrations/006_admin_users_and_rls_hardening.sql)
+   * (lihat migration #6).
+   *
+   * Return null kalau no HP belum terdaftar atau input invalid.
+   */
+  findByPhonePublic(noHp: string): Promise<EventUserPublicSummary | null>
 
   findById(id: string): Promise<EventUser | null>
 

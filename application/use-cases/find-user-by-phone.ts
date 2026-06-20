@@ -1,22 +1,17 @@
-import type { EventUser } from '~/domain/entities/event-user'
+import type { EventUserPublicSummary } from '~/domain/entities/event-user'
 import type { UserRepository } from '~/domain/repositories/user-repository'
 import { normalizePhone } from '~/application/use-cases/normalize-phone'
 
 /**
- * Cari user berdasarkan nomor HP.
- *
- * - Input noHp bebas format ('+62 812...', '0812-...', '0812...' dst).
- * - Output selalu ternormalisasi (digits only, awalan 0).
- * - Return null kalau input invalid ATAU user tidak ditemukan.
- *
- * Dipakai oleh form booking publik untuk autofill field nama.
+ * Public-safe phone lookup. Returns only `{ id, nama }` — never the phone
+ * number, address, or other PII. Safe to call from the booking form.
  */
 export class FindUserByPhone {
   constructor(private readonly userRepository: UserRepository) {}
 
-  async execute(rawPhone: string): Promise<EventUser | null> {
+  async execute(rawPhone: string): Promise<EventUserPublicSummary | null> {
     const normalized = normalizePhone(rawPhone)
     if (!normalized) return null
-    return this.userRepository.findByPhone(normalized)
+    return this.userRepository.findByPhonePublic(normalized)
   }
 }

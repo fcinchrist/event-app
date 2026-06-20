@@ -89,6 +89,11 @@ export class SupabaseRegistrationRepository implements RegistrationRepository {
     userId: string,
     eventId: string,
   ): Promise<Registration | null> {
+    // Catatan: sejak migration #6, SELECT langsung ke `event_registrations`
+    // untuk `anon` sudah diblokir oleh policy
+    // `event_registrations_block_direct_select`. Method ini aman dipakai
+    // HANYA dalam konteks admin (RLS admin mengizinkan). Untuk konteks
+    // publik, gunakan `existsByUserAndEvent` di bawah.
     const supabase = useSupabaseClient()
     const { data, error } = await supabase
       .from('event_registrations')
@@ -103,6 +108,35 @@ export class SupabaseRegistrationRepository implements RegistrationRepository {
     if (!data) return null
 
     return mapRegistrationRow(data)
+  }
+
+  /**
+   * Cek keberadaan registrasi untuk (userId, eventId) — versi publik.
+   *
+   * Memanggil RPC
+   * `find_registration_by_user_and_event(p_user_id text, p_event_id uuid)`
+   * (lihat `supabase/migrations/006_admin_users_and_rls_hardening.sql`).
+   * RPC ini `SECURITY DEFINER`, return boolean, dan TIDAK mengekspos
+   * kolom registrasi apapun ke caller — jadi aman dipakai dari alur
+   * booking publik (form tanpa login).
+   *
+   * Dipakai oleh [`BookEvent`](application/use-cases/book-event.ts) untuk
+   * deteksi duplikat sebelum INSERT registrasi baru.
+   */
+  async existsByUserAndEvent(
+    userId: string,
+    eventId: string,
+  ): Promise<boolean> {
+    const supabase = useSupabaseClient()
+    const { data, error } = await supabase.rpc(
+      'find_registration_by_user_and_event',
+      { p_user_id: userId, p_event_id: eventId },
+    )
+
+    if (error) {
+      throw new Error(error.message)
+    }
+    return Boolean(data)
   }
 
   async create(input: RegistrationInput): Promise<Registration> {
