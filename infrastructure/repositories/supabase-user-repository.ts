@@ -10,6 +10,7 @@ import type {
   UserStats,
 } from '~/domain/repositories/user-repository'
 import { normalizePhone } from '~/application/use-cases/normalize-phone'
+import { buildIlikePattern } from '~/utils/sql-like'
 import type { PaginatedResult } from '~/types/pagination'
 import { useSupabaseClient } from '~/infrastructure/supabase/client'
 import { generateUniqueId } from '~/application/use-cases/generate-id'
@@ -162,7 +163,7 @@ export class SupabaseUserRepository implements UserRepository {
     if (search) {
       // Escape SQL LIKE wildcards so user-supplied `%` / `_` are treated
       // as literal characters.
-      const escaped = search.replace(/[%_]/g, (m: string) => `\\${m}`)
+      const escaped = buildIlikePattern(search).slice(1, -1)
       query = query.or(
         `nama.ilike.%${escaped}%,no_hp.ilike.%${escaped}%`,
       )

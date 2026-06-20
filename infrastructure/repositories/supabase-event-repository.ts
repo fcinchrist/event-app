@@ -1,5 +1,6 @@
 import type { Event, EventFormData } from '~/domain/entities/event'
 import type { EventListParams, EventRepository } from '~/domain/repositories/event-repository'
+import { buildIlikePattern } from '~/utils/sql-like'
 import type { EventStatusValue } from '~/types/common'
 import type { PaginatedResult } from '~/types/pagination'
 import { useSupabaseClient } from '~/infrastructure/supabase/client'
@@ -31,7 +32,8 @@ export class SupabaseEventRepository implements EventRepository {
 
     if (params.search && params.search.trim()) {
       const term = params.search.trim()
-      query = query.or(`title.ilike.%${term}%,location.ilike.%${term}%`)
+      const pattern = buildIlikePattern(term)
+      query = query.or(`title.ilike.${pattern},location.ilike.${pattern}`)
     }
 
     const { data, error, count } = await query
@@ -97,7 +99,8 @@ export class SupabaseEventRepository implements EventRepository {
         .select('id', { count: 'exact', head: true })
         .eq('status', status)
       if (term) {
-        q = q.or(`title.ilike.%${term}%,location.ilike.%${term}%`)
+        const pattern = buildIlikePattern(term)
+        q = q.or(`title.ilike.${pattern},location.ilike.${pattern}`)
       }
       const { count, error } = await q
       if (error) {

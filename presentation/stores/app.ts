@@ -284,12 +284,6 @@ export const useAppStore = defineStore('app', {
       this.page = 1
     },
 
-    setRole(role: AppRole): void {
-      this.role = role
-      if (role === 'member') {
-        this.showAddEventModal = false
-      }
-    },
 
     async initAuth(): Promise<void> {
       try {
