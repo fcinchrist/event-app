@@ -235,11 +235,12 @@ const isBookingDisabled = computed(() => {
           v-model="nama"
           type="text"
           placeholder="Contoh: Budi Santoso"
-          class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs w-full focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          :disabled="regStore.isSubmittingBooking"
+          class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs w-full focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+          :disabled="regStore.isSubmittingBooking || wasAutofilled"
+          :readonly="wasAutofilled"
         >
         <p v-if="wasAutofilled" class="mt-1 text-[10px] text-emerald-600 font-medium flex items-center gap-1">
-          <i class="fa-solid fa-circle-check" /> Otomatis terisi dari data sebelumnya.
+          <i class="fa-solid fa-circle-check" /> Nama diambil dari data pendaftar — tidak dapat diubah.
         </p>
       </div>
 

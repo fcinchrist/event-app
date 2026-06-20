@@ -39,6 +39,77 @@ export class SupabaseRegistrationRepository implements RegistrationRepository {
     params?: RegistrationListParams,
   ): Promise<RegistrationWithUser[]> {
     const supabase = useSupabaseClient()
+
+    // Public path: event-detail page renders the participant list for
+    // a single event without authentication. Since migration 006, anon
+    // SELECT on event_registrations / event_users is blocked by RLS, so
+    // we route through the SECURITY DEFINER RPC
+    // `list_event_registrations_public(p_event_id)` which returns a
+    // safe shape (no no_hp, no internal status).
+    if (params?.eventId && !params?.userId && !params?.status) {
+      const { data, error } = await supabase.rpc(
+        'list_event_registrations_public',
+        { p_event_id: params.eventId },
+      )
+      if (error) throw new Error(error.message)
+      const rows = Array.isArray(data) ? data : []
+      // Build RegistrationWithUser objects from the flat RPC rows.
+      // We cannot use `mapRegistrationWithUserRow` because it requires
+      // a nested `user` relation (PostgREST JOIN shape), whereas the
+      // RPC returns columns flat with `user_nama`. No PII (no_hp)
+      // leaks because the RPC only exposes user_nama.
+      const result: RegistrationWithUser[] = []
+      for (const r of rows as unknown[]) {
+        if (!r || typeof r !== 'object') continue
+        const row = r as {
+          id?: string
+          user_id?: string
+          event_id?: string
+          status?: string
+          checkin_at?: string | null
+          registered_at?: string
+          user_nama?: string | null
+          user_no_hp_masked?: string | null
+        }
+        if (
+          !row.id ||
+          !row.user_id ||
+          !row.event_id ||
+          !row.status ||
+          !row.registered_at
+        ) {
+          continue
+        }
+        // The RPC already returns a masked phone (e.g. '0812****789')
+        // so the UI can show 'WA: 0812****789' without leaking the raw
+        // digits. The client NEVER sees the original `no_hp`.
+        const reg: RegistrationWithUser = {
+          id: row.id,
+          userId: row.user_id,
+          eventId: row.event_id,
+          status: row.status as RegistrationWithUser['status'],
+          checkinAt: row.checkin_at ?? null,
+          registeredAt: row.registered_at,
+          verifiedByEmail: null,
+          verifiedAt: null,
+          user: {
+            id: row.user_id,
+            noHp: row.user_no_hp_masked ?? '',
+            nama: row.user_nama ?? '',
+            userStatus: 'active',
+            memberType: 'external',
+            createdAt: row.registered_at,
+            updatedAt: row.registered_at,
+          },
+        }
+        result.push(reg)
+      }
+      return result
+    }
+
+    // Admin path: full SELECT with filters (used by the dashboard).
+    // Only reaches here when an authenticated admin session calls us,
+    // because anon SELECT is blocked by the RLS policies above.
     let query = supabase
       .from('event_registrations')
       .select('*, user:event_users(*)')
