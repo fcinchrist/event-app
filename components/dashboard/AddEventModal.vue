@@ -18,7 +18,12 @@ const emit = defineEmits<{
 
 const store = useDashboardStore()
 const categoryStore = useEventCategoryStore()
-const { compressToWebP } = useImageCompressor()
+const { compressToWebP, allowedInputMimeTypes } = useImageCompressor()
+
+// Derive the `accept` attribute for <input type="file"> from the
+// composable's MIME allowlist (single source of truth: utils/file-validation.ts).
+// e.g. "image/jpeg,image/png,image/gif,image/webp"
+const acceptImageTypes = allowedInputMimeTypes.join(',')
 
 interface FormState {
   title: string
@@ -193,7 +198,7 @@ async function onSubmit(): Promise<void> {
           <input
             ref="fileInputRef"
             type="file"
-            accept="image/*"
+            :accept="acceptImageTypes"
             class="text-xs text-slate-500 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
             :disabled="isUploading"
             @change="onFileChange"
@@ -206,7 +211,10 @@ async function onSubmit(): Promise<void> {
           </div>
         </div>
         <p class="text-[11px] text-slate-400 mt-1">
-          Otomatis dikompres ke WebP (maks. 1MB). Kosongkan jika ingin poster default.
+          Format: JPG, PNG, GIF, atau WebP (maks. 5MB). Otomatis dikompres dan
+          dikonversi ke WebP. SVG tidak didukung. (Pengguna iPhone: pilih
+          &ldquo;Most Compatible&rdquo; di Settings &rarr; Camera &rarr; Formats.)
+          Kosongkan jika ingin poster default.
         </p>
       </div>
 

@@ -300,9 +300,17 @@ export class SupabaseEventRepository implements EventRepository {
   async uploadImage(file: File): Promise<string> {
     const supabase = useSupabaseClient()
 
-    // Build a unique file name: <timestamp>-<random>.<ext>
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'webp'
-    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+    // Security (Bug #1 hardening):
+    // We DO NOT trust the filename extension or the browser-reported
+    // content type. Both are attacker-controlled. The use case that
+    // calls this method has already validated the file (MIME + size +
+    // extension + magic bytes), and the compressor has re-encoded it
+    // to WebP. We still hardcode the extension and content type here
+    // as a final defense-in-depth: anything that reaches this method
+    // is stored as a `.webp` `image/webp` blob, period.
+    //
+    // Build a unique file name: <timestamp>-<random>.webp
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`
     const filePath = `events/${fileName}`
 
     const { error: uploadError } = await supabase.storage
@@ -310,7 +318,11 @@ export class SupabaseEventRepository implements EventRepository {
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false,
-        contentType: file.type || 'image/webp',
+        // Hardcode the content type. The bucket's `allowed_mime_types`
+        // allowlist (set in migration #7) will reject anything else
+        // at the Supabase layer, so we are explicit here to fail
+        // closed on the first mismatch.
+        contentType: 'image/webp',
       })
 
     if (uploadError) {
