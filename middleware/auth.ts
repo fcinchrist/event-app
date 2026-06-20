@@ -15,8 +15,7 @@ const log = createLogger('middleware:auth')
  * - Jika belum login → redirect ke /admin/login
  * - Jika sudah login → boleh lanjut
  *
- * SECURITY (Bug #6 fix):
- * Tidak hanya percaya pada state Pinia (bisa di-tampering via
+ *  * Tidak hanya percaya pada state Pinia (bisa di-tampering via
  * DevTools / browser extension). Middleware ini melakukan
  * **double-check** dengan memanggil `supabase.auth.getUser()`
  * langsung ke server Supabase (yang memvalidasi JWT dari cookie).

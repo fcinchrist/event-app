@@ -101,7 +101,7 @@ create policy "event_users_public_insert"
     -- 08 + 9 to 13 more digits = total 11 to 15 digits. Mirrors the
     -- length window accepted by `normalizePhone` (10-15 digits) so the
     -- policy never rejects a value the JS layer would have normalized.
-    coalesce(no_hp, '') ~ '^08[0-9]{9,13}$'
+    coalesce(no_hp, '') ~ '^08[0-9]{8,12}$'
     and length(trim(coalesce(nama, ''))) >= 2
     and coalesce(user_status, 'active') in ('active', 'inactive', 'banned')
     and coalesce(member_type, 'external') in ('internal', 'external')
@@ -415,5 +415,5 @@ comment on policy "event_registrations_block_direct_select" on public.event_regi
 --
 -- Expected: a single row named `event_users_public_insert` with
 -- `roles = {anon,authenticated}` and a `with_check` containing
--- `no_hp ~ '^08[0-9]{8,11}$'`.
+-- `no_hp ~ '^08[0-9]{8,12}$'`.
 -- =============================================================

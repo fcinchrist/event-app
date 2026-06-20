@@ -5,7 +5,7 @@
  * Why: the Supabase free tier has a 1 GB storage cap. Compressing on
  * the client side significantly reduces storage and bandwidth usage.
  *
- * Security (Bug #1 hardening):
+ * Security:
  * - Validates the **declared** MIME type against an allowlist
  *   (jpeg / png / gif / webp). SVG and HTML are explicitly rejected
  *   to prevent XSS via uploaded image.
@@ -104,7 +104,7 @@ export function useImageCompressor() {
    * Compress sebuah File gambar ke format WebP.
    * Mengembalikan File baru dengan extension `.webp` siap di-upload.
    *
-   * Validation pipeline (Bug #1 hardening):
+   * Validation pipeline:
    * 1. Reject empty files
    * 2. Reject files > 5 MB (also enforced by Supabase bucket limit)
    * 3. Reject SVG / HTML / XML (XSS vectors)

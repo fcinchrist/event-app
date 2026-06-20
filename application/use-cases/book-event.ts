@@ -2,7 +2,11 @@ import type { Registration } from '~/domain/entities/registration'
 import type { EventRepository } from '~/domain/repositories/event-repository'
 import type { RegistrationRepository } from '~/domain/repositories/registration-repository'
 import type { UserRepository } from '~/domain/repositories/user-repository'
-import { normalizePhone } from '~/application/use-cases/normalize-phone'
+import {
+  normalizePhone,
+  validatePhoneFormat,
+  PHONE_VALIDATION_ERROR,
+} from '~/application/use-cases/normalize-phone'
 
 export interface BookEventInput {
   eventId: string
@@ -30,9 +34,9 @@ export class BookEvent {
     }
 
     // 2. Resolve user (autofill existing, or create new).
-    const normalizedPhone = normalizePhone(input.noHp)
+    const normalizedPhone = validatePhoneFormat(normalizePhone(input.noHp))
     if (!normalizedPhone) {
-      throw new Error('Nomor HP tidak valid.')
+      throw new Error(PHONE_VALIDATION_ERROR)
     }
 
     let user = await this.userRepository.findByPhone(normalizedPhone)

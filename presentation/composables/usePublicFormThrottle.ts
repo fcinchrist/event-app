@@ -1,32 +1,15 @@
 /**
- * useRequestPasswordResetThrottle
- * --------------------------------
- * Cooldown sederhana untuk halaman "Lupa Password".
+ * Cooldown 15 detik untuk form publik (booking event / daftar user oleh
+ * publik). Mencegah spam submit dari double-click atau user awam.
  *
- * Latar belakang :
- * - `resetPasswordForEmail` di Supabase Auth bisa di-probe untuk
- *   enumerasi email admin: response berbeda untuk "email terdaftar"
- *   vs "tidak terdaftar".
- * - Kita sudah memitigasi ini di sisi use-case (generic response +
- *   constant delay). Tapi supaya attacker tidak bisa mem-bombard
- *   endpoint forgot-password sebagai DoS / signal-channel, kita
- *   tambah cooldown client-side.
- *
- * Strategi:
- * - Cooldown fixed 60 detik setelah submit terakhir (berhasil atau gagal).
- * - Track di `localStorage` supaya reload page tidak membuka jendela baru.
- * - State reaktif: `isCoolingDown`, `remainingMs` — UI disable button.
- *
- * Catatan:
- * - Ini HANYA untuk UX (admin tidak spam klik) dan pengurangan beban
- *   server. Attacker bisa bypass dengan Incognito / cleared storage,
- *   tapi Supabase server-side rate-limit (5/jam per email default)
- *   yang menjadi gate-of-truth.
+ * Cooldown client-side adalah UX guard + load reduction, BUKAN
+ * gate-of-truth (gate-of-truth = Supabase RLS + use-case check).
+ * IP-based middleware Nuxt untuk DoS prevention masih backlog.
  */
 import { computed, onScopeDispose, ref, watch } from 'vue'
 
-const STORAGE_KEY = 'auth.passwordResetCooldown.v1'
-const COOLDOWN_MS = 60_000
+const STORAGE_KEY = 'publicForm.bookingCooldown.v1'
+const COOLDOWN_MS = 15_000
 
 function readStorage(): number {
   if (typeof window === 'undefined') return 0
@@ -50,7 +33,7 @@ function writeStorage(value: number): void {
   }
 }
 
-export function useRequestPasswordResetThrottle() {
+export function usePublicFormThrottle() {
   const cooldownUntil = ref<number>(readStorage())
   const now = ref<number>(typeof window === 'undefined' ? 0 : Date.now())
   let timerId: ReturnType<typeof setInterval> | null = null

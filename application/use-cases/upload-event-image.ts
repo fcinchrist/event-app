@@ -4,7 +4,7 @@ import { validateImageFile } from '~/utils/file-validation'
 /**
  * Use case khusus untuk upload poster event.
  *
- * Security pipeline (Bug #1 hardening):
+ * Security pipeline:
  * - The client compresses the image via `useImageCompressor` (which
  *   produces a guaranteed `.webp` File). This use case adds a final
  *   server-side check so that even if the client is bypassed (e.g.

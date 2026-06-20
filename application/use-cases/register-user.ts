@@ -1,6 +1,10 @@
 import type { EventUser, EventUserFormData } from '~/domain/entities/event-user'
 import type { UserRepository } from '~/domain/repositories/user-repository'
-import { normalizePhone } from '~/application/use-cases/normalize-phone'
+import {
+  normalizePhone,
+  validatePhoneFormat,
+  PHONE_VALIDATION_ERROR,
+} from '~/application/use-cases/normalize-phone'
 
 export class RegisterUser {
   constructor(private readonly userRepository: UserRepository) {}
@@ -22,9 +26,11 @@ export class RegisterUser {
    * sudah dipakai user lain.
    */
   async execute(input: EventUserFormData): Promise<EventUser> {
-    const noHp = normalizePhone(input.noHp)
+    // (must match RLS regex `^08[0-9]{9,13}$` from migration 006),
+    // giving a clear Indonesian error before the DB round-trip.
+    const noHp = validatePhoneFormat(normalizePhone(input.noHp))
     if (!noHp) {
-      throw new Error('Nomor HP tidak valid.')
+      throw new Error(PHONE_VALIDATION_ERROR)
     }
     const nama = input.nama?.trim() ?? ''
     if (nama.length < 2) {

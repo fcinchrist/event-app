@@ -303,7 +303,6 @@ export const useAppStore = defineStore('app', {
     },
 
     async loginAdmin(email: string, password: string): Promise<string | null> {
-      // Guard throttle (Bug #2 — Login Brute Force mitigation).
       // Kalau email ini sedang dalam lockout, jangan sampai request
       // ke Supabase — langsung kembalikan pesan lockout.
       const throttle = useLoginThrottle()
@@ -348,7 +347,6 @@ export const useAppStore = defineStore('app', {
     },
 
     async requestPasswordReset(email: string): Promise<string | null> {
-      // Cooldown client-side (Bug #3 — anti email enumeration / spam).
       // Mencegah admin (atau bot) mengirim request forgot-password
       // berulang-ulang dalam window pendek. Server-side rate-limit
       // Supabase tetap gate-of-truth.

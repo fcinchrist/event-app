@@ -2,9 +2,11 @@
 import { useAppStore } from '~/presentation/stores/app'
 import { useRegistrationStore } from '~/presentation/stores/registration'
 import { normalizePhone } from '~/application/use-cases/normalize-phone'
+import { usePublicFormThrottle } from '~/presentation/composables/usePublicFormThrottle'
 
 const appStore = useAppStore()
 const regStore = useRegistrationStore()
+const bookingThrottle = usePublicFormThrottle()
 
 // "Now" flag kept in sync between the UI and handlers.
 // When the calendar day rolls over (e.g. the user keeps the page open
@@ -80,11 +82,14 @@ async function handleSubmit(): Promise<void> {
   inlineError.value = null
   successMessage.value = null
 
+  if (bookingThrottle.isCoolingDown.value) {
+    const sec = Math.ceil(bookingThrottle.remainingMs.value / 1000)
+    inlineError.value = `Mohon tunggu ${sec} detik sebelum submit lagi.`
+    return
+  }
+
   if (!appStore.selectedEvent) return
 
-  // Client-side guard for UX: if the event is already past / closed,
-  // do not send the request. The authoritative check still lives in
-  // the BookEvent use case on the server.
   if (isPast.value) {
     inlineError.value = 'Maaf, event ini sudah lewat dan tidak bisa di-booking lagi.'
     return
@@ -107,6 +112,9 @@ async function handleSubmit(): Promise<void> {
     inlineError.value = 'Nama wajib diisi (min. 2 karakter).'
     return
   }
+
+  // Trigger cooldown sebelum await supaya double-click benar-benar diblok.
+  bookingThrottle.trigger()
 
   const result = await regStore.registerForEvent({
     noHp: phoneTrim,
@@ -262,22 +270,24 @@ const isBookingDisabled = computed(() => {
       <button
         type="button"
         class="w-full mt-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-        :disabled="regStore.isSubmittingBooking || isBookingDisabled"
+        :disabled="regStore.isSubmittingBooking || isBookingDisabled || bookingThrottle.isCoolingDown.value"
         @click="handleSubmit"
       >
         <i
-          v-if="!regStore.isSubmittingBooking"
+          v-if="!regStore.isSubmittingBooking && !bookingThrottle.isCoolingDown.value"
           class="fa-solid fa-paper-plane text-xs"
         />
         <i v-else class="fa-solid fa-spinner fa-spin text-xs" />
         {{
           regStore.isSubmittingBooking
             ? 'Memproses...'
-            : isPast
-              ? 'Pendaftaran Ditutup'
-              : isClosed
-                ? 'Event Ditutup'
-                : 'Booking Sekarang'
+            : bookingThrottle.isCoolingDown.value
+              ? `Tunggu ${Math.ceil(bookingThrottle.remainingMs.value / 1000)} detik...`
+              : isPast
+                ? 'Pendaftaran Ditutup'
+                : isClosed
+                  ? 'Event Ditutup'
+                  : 'Booking Sekarang'
         }}
       </button>
     </div>

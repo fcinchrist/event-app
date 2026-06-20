@@ -303,7 +303,7 @@ export class SupabaseEventRepository implements EventRepository {
   async uploadImage(file: File): Promise<string> {
     const supabase = useSupabaseClient()
 
-    // Security (Bug #1 hardening):
+    // Security:
     // We DO NOT trust the filename extension or the browser-reported
     // content type. Both are attacker-controlled. The use case that
     // calls this method has already validated the file (MIME + size +

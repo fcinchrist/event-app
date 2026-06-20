@@ -3,7 +3,7 @@
  * ----------------
  * Client-side rate limiter untuk halaman admin login.
  *
- * Latar belakang (Bug #2 — Login Brute Force):
+ * Latar belakang :
  * - Supabase sudah ada rate-limit di sisi server (per-IP & per-account),
  *   tapi feedback-nya kasar (cuma 429 setelah limit) dan attacker yang
  *   pandai akan menggunakan credential stuffing dengan delay besar.

@@ -1,5 +1,8 @@
 import type { AuthRepository, AuthUser } from '~/domain/repositories/auth-repository'
 import { useSupabaseClient } from '~/infrastructure/supabase/client'
+import { createLogger } from '~/utils/logger'
+
+const log = createLogger('auth-repo')
 
 export class SupabaseAuthRepository implements AuthRepository {
   async login(email: string, password: string): Promise<AuthUser> {
@@ -46,8 +49,7 @@ export class SupabaseAuthRepository implements AuthRepository {
   }
 
   /**
-   * resetPasswordForEmail — anti email enumeration (Bug #3).
-   *
+   * resetPasswordForEmail — anti email enumeration.*
    * Sebelumnya: method ini melempar error apa adanya dari Supabase Auth
    * ("Email not confirmed", "User not found", "Email rate limit exceeded").
    * Itu memungkinkan attacker untuk membedakan "email terdaftar" vs
@@ -76,12 +78,11 @@ export class SupabaseAuthRepository implements AuthRepository {
     })
 
     if (error) {
-      // Log untuk monitoring admin (tidak ditampilkan ke caller).
-      // eslint-disable-next-line no-console
-      console.warn(
-        '[auth] resetPasswordForEmail returned an error (silently swallowed to prevent email enumeration):',
-        error.message,
-      )
+      // alih-alih console.warn langsung. Pesan tidak mengandung info
+      // enumerable — hanya kode error Supabase untuk monitoring admin.
+      log.warn('resetPasswordForEmail gagal (ditelan untuk mencegah email enumeration)', {
+        errorCode: error.status,
+      })
       // Silent: return success regardless. Caller tidak boleh propagate
       // error ini ke UI karena akan membuka enumeration vector.
       return

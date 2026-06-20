@@ -6,7 +6,7 @@ const log = createLogger('use-case:request-password-reset')
 /**
  * Window untuk constant-delay: gunakan range acak 600–1200 ms supaya
  * timing response tidak bocor apakah email terdaftar atau tidak.
- * (Bug #3 — Email Enumeration mitigation di layer use-case.)
+ * 
  *
  * 600 ms = cukup untuk menutupi Supabase response time yang biasanya
  * ~150–400 ms, tapi tidak terlalu lambat untuk UX admin yang legitimate.

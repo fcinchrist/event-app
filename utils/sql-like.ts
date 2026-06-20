@@ -1,7 +1,6 @@
 /**
  * SQL LIKE / ILIKE pattern utilities.
  *
- * Bug #7 fix: Pasang helper terpusat untuk escape karakter
  * wildcard `%` dan `_` sehingga input user tidak bisa
  * menyisipkan pattern injection ke query PostgREST `ilike`.
  *

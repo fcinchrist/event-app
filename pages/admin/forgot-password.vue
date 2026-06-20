@@ -38,7 +38,6 @@ async function handleForgotPassword(): Promise<void> {
   const error = await store.requestPasswordReset(email.value)
   isLoading.value = false
   // Sama seperti sebelumnya: kalau success, tampilkan pesan generik
-  // (tidak membedakan email terdaftar atau tidak — Bug #3 mitigation).
   if (!error) {
     successMessage.value = 'Email reset password telah dikirim. Silakan cek inbox Anda (termasuk folder spam).'
   } else {
